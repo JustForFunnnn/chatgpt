@@ -1,8 +1,9 @@
-from base import Base, PKMixin, TimestampsMixin
 from sqlalchemy import (
     Column,
     String,
 )
+
+from app.models.base import Base, PKMixin, TimestampsMixin
 
 
 class Users(PKMixin, TimestampsMixin, Base):

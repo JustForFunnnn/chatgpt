@@ -1,11 +1,12 @@
-from base import Base, PKMixin, TimestampsMixin
-from messages import Messages
 from sqlalchemy import (
     Column,
     Integer,
     String,
 )
 from sqlalchemy.orm import relationship
+
+from app.models.base import Base, PKMixin, TimestampsMixin
+from app.models.messages import Messages
 
 
 class Conversations(PKMixin, TimestampsMixin, Base):

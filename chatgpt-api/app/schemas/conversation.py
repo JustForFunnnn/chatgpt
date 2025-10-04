@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import List
 
-from message import MessageSchema
 from pydantic import BaseModel
+
+from app.schemas.message import MessageSchema
 
 
 class ConversationSchema(BaseModel):

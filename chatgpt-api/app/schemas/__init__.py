@@ -1,6 +1,6 @@
-from chat import ChatRequestSchema
-from conversation import ConversationDetailSchema, ConversationSchema
-from message import MessageSchema
+from app.schemas.chat import ChatRequestSchema
+from app.schemas.conversation import ConversationDetailSchema, ConversationSchema
+from app.schemas.message import MessageSchema
 
 __all__ = [
     "ChatRequestSchema",

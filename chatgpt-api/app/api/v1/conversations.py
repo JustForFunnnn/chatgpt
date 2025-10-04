@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 # -------- Endpoints --------
-@router.get("/api/v1/conversations", response_model=list[ConversationSchema])
+@router.get("/conversations", response_model=list[ConversationSchema])
 async def list_conversations(session: AsyncSession = Depends(get_session)):
     user_id = 1
     query = select(Conversations).where(Conversations.user_id == user_id).order_by(Conversations.created_at.desc())
@@ -20,7 +20,7 @@ async def list_conversations(session: AsyncSession = Depends(get_session)):
     return result.scalars().all()
 
 
-@router.get("/api/v1/conversations/{conversation_id}", response_model=ConversationDetailSchema)
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetailSchema)
 async def get_conversation_history(conversation_id: int, session: AsyncSession = Depends(get_session)):
     user_id = 1
     query = select(Conversations).where(Conversations.id == conversation_id, Conversations.user_id == user_id).options(selectinload(Conversations.messages))

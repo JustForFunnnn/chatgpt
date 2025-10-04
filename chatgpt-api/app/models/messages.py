@@ -1,4 +1,3 @@
-from base import Base, PKMixin, TimestampsMixin
 from sqlalchemy import (
     Column,
     Integer,
@@ -8,6 +7,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Enum as SQLEnum
 
 from app.core.enums import MessageRole
+from app.models.base import Base, PKMixin, TimestampsMixin
 
 
 class Messages(PKMixin, TimestampsMixin, Base):

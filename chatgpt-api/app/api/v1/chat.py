@@ -26,7 +26,7 @@ def messages_to_model_messages(rows: List[Messages]) -> List[ModelMessage]:
     return model_msgs
 
 
-@router.post("/api/v1/chat")
+@router.post("/chat")
 async def chat(
     payload: ChatRequestSchema,
     session: AsyncSession = Depends(get_session),
