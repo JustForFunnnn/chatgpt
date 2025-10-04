@@ -1,5 +1,5 @@
 from chat import ChatRequestSchema
-from conversation import ConversationSchema, ConversationDetailSchema
+from conversation import ConversationDetailSchema, ConversationSchema
 from message import MessageSchema
 
 __all__ = [

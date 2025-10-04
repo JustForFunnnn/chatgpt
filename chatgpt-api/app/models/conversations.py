@@ -1,18 +1,18 @@
-# model.py
+from base import Base, PKMixin, TimestampsMixin
+from messages import Messages
 from sqlalchemy import (
     Column,
     Integer,
     String,
 )
-from sqlalchemy.orm import  relationship
-from base import PKMixin, TimestampsMixin, Base
-from messages import Messages
+from sqlalchemy.orm import relationship
+
 
 class Conversations(PKMixin, TimestampsMixin, Base):
     __tablename__ = "conversations"
 
     title = Column(String, nullable=False)
-    user_id = Column(Integer, nullable=True) 
+    user_id = Column(Integer, nullable=True)
 
     messages = relationship(
         "Messages",

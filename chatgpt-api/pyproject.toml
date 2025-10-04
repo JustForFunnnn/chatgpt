@@ -13,3 +13,31 @@ dependencies = [
     "pyjwt>=2.10.1",
     "sqlalchemy[asyncio]>=2.0.43",
 ]
+
+
+[tool.black]
+line-length = 300
+target-version = ['py312']
+
+[tool.ruff]
+# 与 black 保持一致
+line-length = 300
+target-version = "py312"
+
+# 指定源代码目录，有助于 import 排序
+src = ["app"]
+
+[tool.ruff.lint]
+# 选择要启用的规则。
+# E: pycodestyle (错误)
+# W: pycodestyle (警告)
+# F: Pyflakes (检查代码逻辑错误，例如 F401 就是 "unused import")
+# I: isort (检查 import 排序)
+select = ["E", "W", "F", "I"]
+
+# 你可以忽略某些特定的规则
+# ignore = []
+
+[tool.ruff.lint.isort]
+# 告诉 ruff 如何处理 "app" 目录的导入
+known-first-party = ["app"]

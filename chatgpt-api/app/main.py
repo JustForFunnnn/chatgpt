@@ -1,11 +1,10 @@
-# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.api import api_router
 
-app = FastAPI(title="My Chat App")
+from app.api.v1 import chat, conversations
 
-# CORS Middleware
+app = FastAPI(title="chatgpt-api")
+
 origins = [
     "http://localhost:3000",
 ]
@@ -19,7 +18,9 @@ app.add_middleware(
 )
 
 # Include API router
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+app.include_router(conversations.router, prefix="/api/v1")
+
 
 @app.get("/")
 def read_root():

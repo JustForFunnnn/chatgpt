@@ -1,12 +1,13 @@
-from pydantic import BaseModel
 from datetime import datetime
+
+from pydantic import BaseModel
 
 from app.core.enums import MessageRole
 
-# Base schema for a message
+
 class MessageSchema(BaseModel):
     id: int
-    role: MessageRole 
+    role: MessageRole
     content: str
     created_at: datetime
 

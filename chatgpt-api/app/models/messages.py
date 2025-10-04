@@ -1,22 +1,20 @@
-# model.py
+from base import Base, PKMixin, TimestampsMixin
 from sqlalchemy import (
     Column,
     Integer,
-    String,
-    DateTime,
     Text,
-    func as sql_func
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
-from base import PKMixin, TimestampsMixin, Base
-from messages import Message
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Enum as SQLEnum
+
+from app.core.enums import MessageRole
 
 
 class Messages(PKMixin, TimestampsMixin, Base):
     __tablename__ = "messages"
 
     conversation_id = Column(Integer, nullable=False, index=True)
-    role = Column(String, nullable=False)
+    role = Column(SQLEnum(MessageRole), nullable=False)
     content = Column(Text, nullable=False)
 
     conversation = relationship(
