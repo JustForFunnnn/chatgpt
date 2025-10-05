@@ -6,7 +6,6 @@ from fastapi import HTTPException, status
 class HttpErrorCode(str, Enum):
     TOKEN_EXPIRED = "TOKEN_EXPIRED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
-    CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
     DUPLICATED_USER_NAME = "DUPLICATED_USER_NAME"
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
 
@@ -49,7 +48,7 @@ class DuplicatedUserNameException(HttpBaseException):
 class UserNotFoundException(HttpBaseException):
     def __init__(self, message: str = "User not found for the provided token."):
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_404_NOT_FOUND,
             error_code=HttpErrorCode.USER_NOT_FOUND,
             message=message,
         )
@@ -58,7 +57,7 @@ class UserNotFoundException(HttpBaseException):
 class ConversationNotFoundException(HttpBaseException):
     def __init__(self, message: str = "Conversation not found for the provided conversation id."):
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            error_code=HttpErrorCode.USER_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
+            error_code=HttpErrorCode.CONVERSATION_NOT_FOUND,
             message=message,
         )

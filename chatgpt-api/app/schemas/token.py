@@ -4,8 +4,8 @@ from pydantic import BaseModel
 
 
 class JwtTokenPayloadSchema(BaseModel):
-    sub: int  # user id
-    user_name: str
+    sub: str  # user id
+    username: str
     exp: datetime  # experied date
 
 

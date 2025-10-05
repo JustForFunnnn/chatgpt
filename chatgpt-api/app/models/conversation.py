@@ -6,18 +6,19 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, PKMixin, TimestampsMixin
-from app.models.messages import Messages
+from app.models.message import Message
 
 
-class Conversations(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "conversations"
+class Conversation(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "conversation"
 
     title = Column(String, nullable=False)
     user_id = Column(Integer, nullable=False, index=True)
 
     messages = relationship(
-        "Messages",
-        primaryjoin="Messages.conversation_id == Conversations.id",
-        foreign_keys=lambda: [Messages.conversation_id],
+        "Message",
+        primaryjoin="Message.conversation_id == Conversation.id",
+        order_by="Message.created_at.asc()",
+        foreign_keys=lambda: [Message.conversation_id],
         back_populates="conversation",
     )

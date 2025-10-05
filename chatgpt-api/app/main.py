@@ -4,7 +4,7 @@ from logging.config import dictConfig
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, chat, conversations
+from app.api.v1 import auth, chat, conversation
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging_config import LOGGING_CONFIG
 
@@ -27,7 +27,7 @@ def config_app(app: FastAPI):
 
     # Include API router
     app.include_router(chat.router, prefix="/api/v1")
-    app.include_router(conversations.router, prefix="/api/v1")
+    app.include_router(conversation.router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
 
     # Register exception handers and print log

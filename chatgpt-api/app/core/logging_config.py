@@ -1,6 +1,7 @@
 from pathlib import Path
 
-LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
+# Put log files outside the chatgpt-api project to avoid trigger auto reload when run `uv run fastapi dev`
+LOGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "chatgpt-api-logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
 
@@ -41,7 +42,7 @@ LOGGING_CONFIG = {
         },
         "file_error": {
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "formatter": "json",
+            "formatter": "default",
             "filename": LOGS_DIR / "error.log",
             "when": "midnight",
             "interval": 1,
@@ -51,11 +52,6 @@ LOGGING_CONFIG = {
         },
     },
     "loggers": {
-        "uvicorn.access": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
         "app": {
             "handlers": ["console", "file_info", "file_warn", "file_error"],
             "level": "INFO",

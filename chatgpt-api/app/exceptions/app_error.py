@@ -3,7 +3,6 @@ from enum import Enum
 
 class AppErrorCode(str, Enum):
     DB_OPERATION_FAILED = "DB_OPERATION_FAILED"
-    USER_NOT_FOUND = "USER_NOT_FOUND"
 
 
 class AppBaseError(Exception):
@@ -16,8 +15,3 @@ class AppBaseError(Exception):
 class DatabaseError(AppBaseError):
     def __init__(self, message: str = "Database operation failed."):
         super().__init__(message=message, error_code=AppErrorCode.DB_OPERATION_FAILED)
-
-
-class UserNotFoundError(AppBaseError):
-    def __init__(self, detail: str = "User not found."):
-        super().__init__(detail=detail, error_code=AppErrorCode.USER_NOT_FOUND)

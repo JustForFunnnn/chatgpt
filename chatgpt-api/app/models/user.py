@@ -6,8 +6,8 @@ from sqlalchemy import (
 from app.models.base import Base, PKMixin, TimestampsMixin
 
 
-class Users(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "users"
+class User(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "user"
 
-    user_name = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)

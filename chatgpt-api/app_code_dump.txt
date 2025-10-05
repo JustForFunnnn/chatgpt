@@ -1,0 +1,839 @@
+# app/api/v1/auth.py code:
+from fastapi import APIRouter, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import get_session
+from app.exceptions.http_exceptions import DuplicatedUserNameException, InvalidCredentialsException
+from app.models import Users
+from app.schemas.token import TokenSchema
+from app.schemas.user import UserCreateSchema, UserSchema
+from app.services.auth import (
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    get_user_by_name,
+    verify_password,
+)
+
+router = APIRouter()
+
+
+@router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
+async def register_user(
+    user_create_data: UserCreateSchema,
+    session: AsyncSession = Depends(get_session),
+):
+    existing_user = await get_user_by_name(session, user_create_data.user_name)
+    if existing_user:
+        raise DuplicatedUserNameException()
+
+    hashed_password = get_password_hash(user_create_data.password)
+    new_user = Users(user_name=user_create_data.user_name, hashed_password=hashed_password)
+    session.add(new_user)
+    await session.flush()
+
+    return new_user
+
+
+@router.post("/login", response_model=TokenSchema)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_session),
+):
+    user = await get_user_by_name(session, form_data.username)
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise InvalidCredentialsException()
+
+    access_token = create_access_token(user)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+async def logout(current_user: Users = Depends(get_current_user)):
+    return {"message": f"User {current_user.user_name} has been logged out successfully."}
+
+# app/api/v1/chat.py code:
+import logging
+from typing import List
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
+from pydantic_ai import Agent, ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.enums import MessageRole
+from app.db import get_session
+from app.exceptions.http_exceptions import ConversationNotFoundException
+from app.llm import get_agent
+from app.models import Conversations, Messages, Users
+from app.schemas import ChatRequestSchema, GeneratedTitleOutputSchema
+from app.services.auth import get_current_user
+
+router = APIRouter()
+
+logger = logging.getLogger("app")
+
+
+def messages_to_model_messages(rows: List[Messages]) -> List[ModelMessage]:
+    model_msgs = []
+    for m in rows:
+        if m.role == MessageRole.USER:
+            model_msgs.append(ModelRequest(parts=[UserPromptPart(content=m.content)]))
+        else:
+            model_msgs.append(ModelResponse(parts=[TextPart(content=m.content)]))
+    return model_msgs
+
+
+@router.post("/chat")
+async def chat(
+    chat_request: ChatRequestSchema,
+    session: AsyncSession = Depends(get_session),
+    agent: Agent = Depends(get_agent),
+    current_user: Users = Depends(get_current_user),
+):
+    conversation_id = chat_request.conversation_id
+
+    message_history = []
+    if conversation_id:
+        query = (
+            select(Conversations)
+            .where(
+                Conversations.id == conversation_id,
+                Conversations.user_id == current_user.id,
+            )
+            .options(selectinload(Conversations.messages))
+        )
+        result = await session.execute(query)
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise ConversationNotFoundException()
+        message_history = messages_to_model_messages(conversation.messages)
+    else:
+        title_generation_prompt = f"Suggest a short, concise title for the following user query: '{chat_request.user_input}'"
+        title_out_obj: GeneratedTitleOutputSchema = await agent.run(title_generation_prompt, output_model=GeneratedTitleOutputSchema)
+        conversation = Conversations(
+            title=title_out_obj.title,
+            user_id=current_user.id,
+        )
+        session.add(conversation)
+        await session.flush()
+
+    user_message = Messages(conversation_id=conversation.id, role=MessageRole.USER, user_id=current_user.id, content=chat_request.user_input)
+    session.add(user_message)
+    await session.flush()
+
+    async def stream_and_save_response():
+        full_response_content = ""
+        try:
+            async with agent.run_stream(chat_request.user_input, message_history=message_history) as result:
+                async for piece in result.stream_text(delta=True):
+                    full_response_content += piece
+                    yield f"data: {piece}\n\n"
+
+            if full_response_content:
+                assistant_message = Messages(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_response_content,
+                )
+                session.add(assistant_message)
+        except Exception as e:
+            logger.error(f"An error occurred during streaming/saving: {e}", exc_info=True)
+            yield "data: error: An error occurred processing your request.\n\n"
+            raise
+
+    headers = {"X-Conversation-Id": str(conversation.id)}
+    return StreamingResponse(stream_and_save_response(), media_type="text/event-stream", headers=headers)
+
+# app/api/v1/conversations.py code:
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db import get_session
+from app.exceptions.http_exceptions import ConversationNotFoundException
+from app.models import Conversations, Users
+from app.schemas.conversation import ConversationDetailSchema, ConversationSchema
+from app.services.auth import get_current_user
+
+router = APIRouter()
+
+
+@router.get("/conversations", response_model=list[ConversationSchema])
+async def list_conversations(
+    session: AsyncSession = Depends(get_session),
+    current_user: Users = Depends(get_current_user),
+):
+    query = select(Conversations).where(Conversations.user_id == current_user.id).order_by(Conversations.updated_at.desc())
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetailSchema)
+async def get_conversation_history(
+    conversation_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: Users = Depends(get_current_user),
+):
+    query = (
+        select(Conversations)
+        .where(
+            Conversations.id == conversation_id,
+            Conversations.user_id == current_user.id,
+        )
+        .options(selectinload(Conversations.messages))
+    )
+    result = await session.execute(query)
+    conversation = result.scalar_one_or_none()
+    if not conversation:
+        raise ConversationNotFoundException()
+    return conversation
+
+# app/core/config.py code:
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AppSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    AI_MODEL_NAME: str
+    DATABASE_URL: SecretStr
+    PASSWORD_SECRET_KEY: SecretStr
+
+    AZURE_API_VERSION: str | None = None
+    AZURE_ENDPOINT: str | None = None
+    AZURE_API_KEY: SecretStr | None = None
+
+
+# Environment Variables > .env > default value
+settings = AppSettings()
+
+# app/core/enums.py code:
+from enum import Enum
+
+
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+# app/core/exception_handlers.py code:
+import logging
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette import status
+
+from app.exceptions.app_error import AppBaseError, DatabaseError
+from app.exceptions.http_exceptions import HttpBaseException
+
+logger = logging.getLogger("app")
+
+
+async def http_base_exception_handler(request: Request, exc: HttpBaseException):
+    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
+    logger.log(log_level, f"Custom HTTP error, error_code: {exc.error_code}, message: {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail,
+        headers=exc.headers,
+    )
+
+
+async def generic_http_exception_handler(request: Request, exc: HTTPException):
+    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
+    logger.log(log_level, f"Generic HTTP error, status_code: {exc.status_code}, detail: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error_code": "GENERIC_HTTP_ERROR", "message": exc.detail},
+        headers=exc.headers,
+    )
+
+
+async def database_exception_handler(request: Request, exc: DatabaseError):
+    logger.error(f"Database error, error_code: {exc.error_code}, message: {exc.message}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"error_code": exc.error_code.value, "message": "The service is temporarily unavailable due to a database issue."},
+    )
+
+
+async def app_exception_handler(request: Request, exc: AppBaseError):
+    logger.warning(f"App error, error_code: {exc.error_code}, message: {exc.message}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error_code": exc.error_code.value, "message": exc.detail},
+    )
+
+
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"message": "An internal server error occurred. Please try again later."},
+    )
+
+
+def register_exception_handlers(app: FastAPI):
+    app.add_exception_handler(HttpBaseException, http_base_exception_handler)
+    app.add_exception_handler(HTTPException, generic_http_exception_handler)
+    app.add_exception_handler(DatabaseError, database_exception_handler)
+    app.add_exception_handler(AppBaseError, app_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
+
+# app/core/logging_config.py code:
+from pathlib import Path
+
+LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default",
+            "level": "INFO",
+        },
+        "file_info": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "formatter": "default",
+            "filename": LOGS_DIR / "info.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 0,
+            "level": "INFO",
+            "encoding": "utf-8",
+        },
+        "file_warn": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "formatter": "default",
+            "filename": LOGS_DIR / "warn.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 0,
+            "level": "WARNING",
+            "encoding": "utf-8",
+        },
+        "file_error": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "formatter": "default",
+            "filename": LOGS_DIR / "error.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 0,
+            "level": "ERROR",
+            "encoding": "utf-8",
+        },
+    },
+    "loggers": {
+        "uvicorn.access": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "app": {
+            "handlers": ["console", "file_info", "file_warn", "file_error"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+    "root": {
+        "handlers": ["console", "file_info", "file_warn", "file_error"],
+        "level": "INFO",
+    },
+}
+
+# app/db/__init__.py code:
+from app.db.session import get_session
+
+__all__ = ["get_session"]
+
+# app/db/session.py code:
+import logging
+from typing import AsyncGenerator
+
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.core.config import settings
+from app.exceptions.app_error import DatabaseError
+
+logger = logging.getLogger("app")
+
+async_engine = create_async_engine(settings.DATABASE_URL.get_secret_value(), echo=False)
+async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f"Database operation failed: {e}", exc_info=True)
+            await session.rollback()
+            raise DatabaseError(message=f"Database error: {e}")
+        except Exception as exc:
+            logger.error(f"An unexpected error occurred during the session, rolling back: {exc}", exc_info=True)
+            await session.rollback()
+            raise
+
+# app/exceptions/app_error.py code:
+from enum import Enum
+
+
+class AppErrorCode(str, Enum):
+    DB_OPERATION_FAILED = "DB_OPERATION_FAILED"
+    USER_NOT_FOUND = "USER_NOT_FOUND"
+
+
+class AppBaseError(Exception):
+    def __init__(self, message: str, error_code: AppErrorCode):
+        self.message = message
+        self.error_code = error_code
+        super().__init__(message)
+
+
+class DatabaseError(AppBaseError):
+    def __init__(self, message: str = "Database operation failed."):
+        super().__init__(message=message, error_code=AppErrorCode.DB_OPERATION_FAILED)
+
+
+class UserNotFoundError(AppBaseError):
+    def __init__(self, detail: str = "User not found."):
+        super().__init__(detail=detail, error_code=AppErrorCode.USER_NOT_FOUND)
+
+# app/exceptions/http_exceptions.py code:
+from enum import Enum
+
+from fastapi import HTTPException, status
+
+
+class HttpErrorCode(str, Enum):
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    DUPLICATED_USER_NAME = "DUPLICATED_USER_NAME"
+    CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+
+
+class HttpBaseException(HTTPException):
+    def __init__(self, status_code: int, error_code: HttpErrorCode, message: str):
+        self.error_code = error_code
+        self.message = message
+        detail = {"error_code": error_code.value, "message": message}
+        super().__init__(status_code=status_code, detail=detail)
+
+
+class TokenExpiredException(HttpBaseException):
+    def __init__(self, message: str = "Token has expired."):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            error_code=HttpErrorCode.TOKEN_EXPIRED,
+            message=message,
+        )
+
+
+class InvalidCredentialsException(HttpBaseException):
+    def __init__(self, message: str = "Could not validate credentials."):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            error_code=HttpErrorCode.INVALID_CREDENTIALS,
+            message=message,
+        )
+
+
+class DuplicatedUserNameException(HttpBaseException):
+    def __init__(self, message: str = "Duplicated user name."):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            error_code=HttpErrorCode.DUPLICATED_USER_NAME,
+            message=message,
+        )
+
+
+class UserNotFoundException(HttpBaseException):
+    def __init__(self, message: str = "User not found for the provided token."):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            error_code=HttpErrorCode.USER_NOT_FOUND,
+            message=message,
+        )
+
+
+class ConversationNotFoundException(HttpBaseException):
+    def __init__(self, message: str = "Conversation not found for the provided conversation id."):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            error_code=HttpErrorCode.USER_NOT_FOUND,
+            message=message,
+        )
+
+# app/llm/__init__.py code:
+from app.llm.agent import get_agent
+
+__all__ = [
+    "get_agent",
+]
+
+# app/llm/agent.py code:
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.azure import AzureProvider
+
+from app.core.config import settings
+
+
+def new_agent() -> Agent:
+    model = OpenAIChatModel(
+        settings.AI_MODEL_NAME,
+        provider=AzureProvider(
+            azure_endpoint=settings.AZURE_ENDPOINT,
+            api_version=settings.AZURE_API_VERSION,
+            api_key=settings.AZURE_API_KEY.get_secret_value(),
+        ),
+    )
+
+    agent = Agent(model=model)
+    return agent
+
+
+__agent = new_agent()
+
+
+def get_agent() -> Agent:
+    return __agent
+
+# app/main.py code:
+import logging
+from logging.config import dictConfig
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.v1 import auth, chat, conversations
+from app.core.exception_handlers import register_exception_handlers
+from app.core.logging_config import LOGGING_CONFIG
+
+dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("app")
+
+origins = [
+    "http://localhost:3000",
+]
+
+
+def config_app(app: FastAPI):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include API router
+    app.include_router(chat.router, prefix="/api/v1")
+    app.include_router(conversations.router, prefix="/api/v1")
+    app.include_router(auth.router, prefix="/api/v1")
+
+    # Register exception handers and print log
+    register_exception_handlers(app)
+
+
+app = FastAPI(title="chatgpt-api")
+config_app(app)
+
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Chat API"}
+
+# app/models/__init__.py code:
+from app.models.base import Base
+from app.models.conversations import Conversations
+from app.models.messages import Messages
+from app.models.users import Users
+
+__all__ = ["Base", "Conversations", "Messages", "Users"]
+
+# app/models/base.py code:
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Integer
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class PKMixin:
+    __abstract__ = True
+    id = Column(Integer, primary_key=True)
+
+
+class TimestampsMixin:
+    __abstract__ = True
+    created_at = Column(DateTime, nullable=False, default=datetime.now)
+    updated_at = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)
+
+# app/models/conversations.py code:
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+)
+from sqlalchemy.orm import relationship
+
+from app.models.base import Base, PKMixin, TimestampsMixin
+from app.models.messages import Messages
+
+
+class Conversations(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "conversations"
+
+    title = Column(String, nullable=False)
+    user_id = Column(Integer, nullable=False, index=True)
+
+    messages = relationship(
+        "Messages",
+        primaryjoin="Messages.conversation_id == Conversations.id",
+        foreign_keys=lambda: [Messages.conversation_id],
+        back_populates="conversation",
+    )
+
+# app/models/messages.py code:
+from sqlalchemy import (
+    Column,
+    Integer,
+    Text,
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql.sqltypes import Enum as SQLEnum
+
+from app.core.enums import MessageRole
+from app.models.base import Base, PKMixin, TimestampsMixin
+
+
+class Messages(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "messages"
+
+    user_id = Column(Integer, nullable=False, index=True)
+    conversation_id = Column(Integer, nullable=False, index=True)
+    role = Column(SQLEnum(MessageRole), nullable=False)
+    content = Column(Text, nullable=False)
+
+    conversation = relationship(
+        "Conversations",
+        primaryjoin="Messages.conversation_id == Conversations.id",
+        foreign_keys=[conversation_id],
+        back_populates="messages",
+    )
+
+# app/models/users.py code:
+from sqlalchemy import (
+    Column,
+    String,
+)
+
+from app.models.base import Base, PKMixin, TimestampsMixin
+
+
+class Users(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "users"
+
+    user_name = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+# app/schemas/__init__.py code:
+from app.schemas.chat import ChatRequestSchema
+from app.schemas.conversation import ConversationDetailSchema, ConversationSchema, GeneratedTitleOutputSchema
+from app.schemas.message import MessageSchema
+from app.schemas.token import JwtTokenPayloadSchema, TokenSchema
+from app.schemas.user import UserCreateSchema, UserSchema
+
+__all__ = [
+    "ChatRequestSchema",
+    "ConversationSchema",
+    "ConversationDetailSchema",
+    "GeneratedTitleOutputSchema",
+    "MessageSchema",
+    "TokenSchema",
+    "JwtTokenPayloadSchema",
+    "UserCreateSchema",
+    "UserSchema",
+]
+
+# app/schemas/chat.py code:
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class ChatRequestSchema(BaseModel):
+    user_input: str
+    conversation_id: Optional[int] = None
+
+# app/schemas/conversation.py code:
+from datetime import datetime
+from typing import List
+
+from pydantic import BaseModel, Field
+
+from app.schemas.message import MessageSchema
+
+
+class ConversationSchema(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetailSchema(ConversationSchema):
+    messages: List[MessageSchema]
+
+
+class GeneratedTitleOutputSchema(BaseModel):
+    title: str = Field(..., description="A short, concise title for the conversation")
+
+# app/schemas/message.py code:
+from datetime import datetime
+
+from pydantic import BaseModel
+
+from app.core.enums import MessageRole
+
+
+class MessageSchema(BaseModel):
+    id: int
+    role: MessageRole
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# app/schemas/token.py code:
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class JwtTokenPayloadSchema(BaseModel):
+    sub: int  # user id
+    user_name: str
+    exp: datetime  # experied date
+
+
+class TokenSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+# app/schemas/user.py code:
+from pydantic import BaseModel, Field
+
+
+class UserCreateSchema(BaseModel):
+    user_name: str = Field(..., min_length=3, max_length=20, description="user name")
+    password: str = Field(..., min_length=6, description="password")
+
+
+class UserSchema(BaseModel):
+    id: int
+    user_name: str
+
+    class Config:
+        from_attributes = True
+
+# app/services/auth.py code:
+# app/services/auth.py
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+import jwt
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+from jwt import ExpiredSignatureError, PyJWTError
+from passlib.context import CryptContext
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.db import get_session
+from app.exceptions import InvalidCredentialsException, TokenExpiredException, UserNotFoundException
+from app.models import Users
+from app.schemas.token import JwtTokenPayloadSchema
+
+SECRET_KEY = settings.PASSWORD_SECRET_KEY.get_secret_value()
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 7
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def create_access_token(user: Users, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Generates a new JWT access token.
+    """
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+
+    payload_to_encode = JwtTokenPayloadSchema(sub=user.id, user_name=user.user_name, exp=expire)
+
+    encoded_jwt = jwt.encode(payload_to_encode.model_dump(), SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+async def get_user_by_name(session: AsyncSession, username: str) -> Users | None:
+    query = select(Users).where(Users.user_name == username)
+    result = await session.execute(query)
+    return result.scalar_one_or_none()
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)) -> Users:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_data = JwtTokenPayloadSchema(**payload)
+    except ExpiredSignatureError:
+        raise TokenExpiredException()
+    except (PyJWTError, ValidationError):
+        raise InvalidCredentialsException()
+
+    query = select(Users).where(Users.id == token_data.sub)
+    result = await session.execute(query)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise UserNotFoundException()
+
+    return user
+

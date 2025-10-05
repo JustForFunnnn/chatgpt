@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends
@@ -12,8 +13,8 @@ from app.core.enums import MessageRole
 from app.db import get_session
 from app.exceptions.http_exceptions import ConversationNotFoundException
 from app.llm import get_agent
-from app.models import Conversations, Messages, Users
-from app.schemas.chat import ChatRequestSchema
+from app.models import Conversation, Message, User
+from app.schemas import ChatRequestSchema, GeneratedTitleOutputSchema
 from app.services.auth import get_current_user
 
 router = APIRouter()
@@ -21,7 +22,20 @@ router = APIRouter()
 logger = logging.getLogger("app")
 
 
-def messages_to_model_messages(rows: List[Messages]) -> List[ModelMessage]:
+def trim_message_history(msgs: List[ModelMessage], max_chars=12000, pin_heads=2) -> List[ModelMessage]:
+    head = msgs[:pin_heads]
+    tail = msgs[pin_heads:]
+    acc, out = 0, []
+    for m in reversed(tail):
+        size = sum(len(getattr(p, "content", "")) for p in m.parts)
+        if acc + size > max_chars:
+            break
+        out.append(m)
+        acc += size
+    return head + list(reversed(out))
+
+
+def messages_to_model_messages(rows: List[Message]) -> List[ModelMessage]:
     model_msgs = []
     for m in rows:
         if m.role == MessageRole.USER:
@@ -30,64 +44,89 @@ def messages_to_model_messages(rows: List[Messages]) -> List[ModelMessage]:
             model_msgs.append(ModelResponse(parts=[TextPart(content=m.content)]))
     return model_msgs
 
+import json
+from enum import Enum
+
+class SSEventType(Enum):
+    DELTA = "delta"
+    DONE = "done"
+    ERROR = "error"
+
+class SSEvent:
+    def __init__(self, type: SSEventType, data: str):
+        self.type = type
+        self.data = data
+
+    def __str__(self):
+        payload = {"type": self.type.value, "data": self.data}
+        return f"data: {json.dumps(payload)}\n\n"
+
 
 @router.post("/chat")
 async def chat(
-    payload: ChatRequestSchema,
+    chat_in: ChatRequestSchema,
     session: AsyncSession = Depends(get_session),
     agent: Agent = Depends(get_agent),
-    current_user: Users = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    conversation_id = payload.conversation_id
+    conversation_id = chat_in.conversation_id
 
     message_history = []
     if conversation_id:
         query = (
-            select(Conversations)
+            select(Conversation)
             .where(
-                Conversations.id == conversation_id,
-                Conversations.user_id == current_user.id,
+                Conversation.id == conversation_id,
+                Conversation.user_id == current_user.id,
             )
-            .options(selectinload(Conversations.messages))
+            .options(selectinload(Conversation.messages))
         )
         result = await session.execute(query)
         conversation = result.scalar_one_or_none()
         if not conversation:
             raise ConversationNotFoundException()
         message_history = messages_to_model_messages(conversation.messages)
+        message_history = trim_message_history(message_history)
     else:
-        title_generation_prompt = f"Suggest a short, concise title for the following user query. Respond with only the title and nothing else: '{payload.user_input}'"
-        generated_title = (await agent.run(title_generation_prompt)).output
-
-        conversation = Conversations(
-            title=generated_title.strip().strip('"'),
+        title_generation_prompt = f"Suggest a short, concise title for the following user query: '{chat_in.user_input}'"
+        title_out_obj = await agent.run(title_generation_prompt, output_type=GeneratedTitleOutputSchema)
+        conversation = Conversation(
+            title=title_out_obj.output.title,
             user_id=current_user.id,
         )
         session.add(conversation)
         await session.flush()
 
-    user_message = Messages(conversation_id=conversation.id, role=MessageRole.USER, user_id=current_user.id, content=payload.user_input)
+    user_message = Message(conversation_id=conversation.id, role=MessageRole.USER, user_id=current_user.id, content=chat_in.user_input)
+    conversation.updated_at = datetime.now()
     session.add(user_message)
     await session.flush()
 
     async def stream_and_save_response():
         full_response_content = ""
         try:
-            async with agent.run_stream(payload.user_input, message_history=message_history) as result:
-                async for piece in result.stream_text(delta=True):
-                    full_response_content += piece
-                    yield f"data: {piece}\n\n"
+            async with agent.run_stream(chat_in.user_input, message_history=message_history) as result:
+                async for chunk in result.stream_text(delta=True):
+                    full_response_content += chunk
+                    yield str(SSEvent(type=SSEventType.DELTA, data=chunk))
 
             if full_response_content:
-                assistant_message = Messages(
+                assistant_message = Message(
+                    user_id=current_user.id,
                     conversation_id=conversation.id,
-                    role="assistant",
+                    role=MessageRole.ASSISTANT,
                     content=full_response_content,
                 )
                 session.add(assistant_message)
+            yield str(SSEvent(type=SSEventType.DONE, data=""))
         except Exception as e:
             logger.error(f"An error occurred during streaming/saving: {e}", exc_info=True)
-            yield "data: error: An error occurred processing your request.\n\n"
+            yield str(SSEvent(SSEventType.ERROR, "An internal server error occurred."))
+            return
 
-    headers = {"X-Conversation-Id": str(conversation.id)}
+    headers = {
+        "X-Conversation-Id": str(conversation.id),
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+    }
     return StreamingResponse(stream_and_save_response(), media_type="text/event-stream", headers=headers)

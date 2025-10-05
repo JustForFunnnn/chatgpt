@@ -19,10 +19,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
             await session.commit()
         except SQLAlchemyError as e:
-            logger.error(f"Database operation failed: {e}", exc_info=True)
             await session.rollback()
             raise DatabaseError(message=f"Database error: {e}")
         except Exception as exc:
-            logger.error(f"An unexpected error occurred during the session, rolling back: {exc}", exc_info=True)
             await session.rollback()
             raise

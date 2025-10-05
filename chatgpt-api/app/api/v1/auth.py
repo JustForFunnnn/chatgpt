@@ -4,14 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.exceptions.http_exceptions import DuplicatedUserNameException, InvalidCredentialsException
-from app.models import Users
+from app.models import User
 from app.schemas.token import TokenSchema
 from app.schemas.user import UserCreateSchema, UserSchema
 from app.services.auth import (
     create_access_token,
     get_current_user,
     get_password_hash,
-    get_user_by_username,
+    get_user_by_name,
     verify_password,
 )
 
@@ -23,12 +23,12 @@ async def register_user(
     user_in: UserCreateSchema,
     session: AsyncSession = Depends(get_session),
 ):
-    existing_user = await get_user_by_username(session, user_in.user_name)
+    existing_user = await get_user_by_name(session, user_in.username)
     if existing_user:
         raise DuplicatedUserNameException()
 
     hashed_password = get_password_hash(user_in.password)
-    new_user = Users(user_name=user_in.user_name, hashed_password=hashed_password)
+    new_user = User(username=user_in.username, hashed_password=hashed_password)
     session.add(new_user)
     await session.flush()
 
@@ -36,12 +36,12 @@ async def register_user(
 
 
 @router.post("/login", response_model=TokenSchema)
-async def login_for_access_token(
+async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
-    user = await get_user_by_username(session, form_data.username)
-    if not user or not verify_password(form_data.password, user.password_hash):
+    user = await get_user_by_name(session, form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise InvalidCredentialsException()
 
     access_token = create_access_token(user)
@@ -49,5 +49,6 @@ async def login_for_access_token(
 
 
 @router.post("/logout")
-async def logout(current_user: Users = Depends(get_current_user)):
-    return {"message": f"User {current_user.user_name} has been logged out successfully."}
+async def logout(current_user: User = Depends(get_current_user)):
+    """Do nothing, the client should be delete the jwt token from storage after call this api"""
+    return {"message": f"User {current_user.id} has been logged out successfully."}

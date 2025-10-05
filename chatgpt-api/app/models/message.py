@@ -10,8 +10,8 @@ from app.core.enums import MessageRole
 from app.models.base import Base, PKMixin, TimestampsMixin
 
 
-class Messages(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "messages"
+class Message(PKMixin, TimestampsMixin, Base):
+    __tablename__ = "message"
 
     user_id = Column(Integer, nullable=False, index=True)
     conversation_id = Column(Integer, nullable=False, index=True)
@@ -19,8 +19,8 @@ class Messages(PKMixin, TimestampsMixin, Base):
     content = Column(Text, nullable=False)
 
     conversation = relationship(
-        "Conversations",
-        primaryjoin="Messages.conversation_id == Conversations.id",
+        "Conversation",
+        primaryjoin="Message.conversation_id == Conversation.id",
         foreign_keys=[conversation_id],
         back_populates="messages",
     )
