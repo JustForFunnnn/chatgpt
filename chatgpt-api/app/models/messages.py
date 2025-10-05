@@ -13,6 +13,7 @@ from app.models.base import Base, PKMixin, TimestampsMixin
 class Messages(PKMixin, TimestampsMixin, Base):
     __tablename__ = "messages"
 
+    user_id = Column(Integer, nullable=False, index=True)
     conversation_id = Column(Integer, nullable=False, index=True)
     role = Column(SQLEnum(MessageRole), nullable=False)
     content = Column(Text, nullable=False)

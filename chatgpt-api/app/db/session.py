@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.exceptions.app import DatabaseError
+from app.exceptions.app_error import DatabaseError
 
 logger = logging.getLogger("app")
 
@@ -19,9 +19,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
             await session.commit()
         except SQLAlchemyError as e:
-            logger.error(f"Database transaction failed: {e}", exc_info=True)
+            logger.error(f"Database operation failed: {e}", exc_info=True)
             await session.rollback()
-            raise DatabaseError(detail="A database error occurred during the transaction.")
+            raise DatabaseError(message=f"Database error: {e}")
         except Exception as exc:
             logger.error(f"An unexpected error occurred during the session, rolling back: {exc}", exc_info=True)
             await session.rollback()

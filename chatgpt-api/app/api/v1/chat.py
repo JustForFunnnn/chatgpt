@@ -1,6 +1,7 @@
+import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic_ai import Agent, ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from sqlalchemy import select
@@ -9,11 +10,15 @@ from sqlalchemy.orm import selectinload
 
 from app.core.enums import MessageRole
 from app.db import get_session
+from app.exceptions.http_exceptions import ConversationNotFoundException
 from app.llm import get_agent
-from app.models import Conversations, Messages
+from app.models import Conversations, Messages, Users
 from app.schemas.chat import ChatRequestSchema
+from app.services.auth import get_current_user
 
 router = APIRouter()
+
+logger = logging.getLogger("app")
 
 
 def messages_to_model_messages(rows: List[Messages]) -> List[ModelMessage]:
@@ -31,38 +36,41 @@ async def chat(
     payload: ChatRequestSchema,
     session: AsyncSession = Depends(get_session),
     agent: Agent = Depends(get_agent),
+    current_user: Users = Depends(get_current_user),
 ):
     conversation_id = payload.conversation_id
 
-    user_id = 1
-
     message_history = []
     if conversation_id:
-        query = select(Conversations).where(Conversations.id == conversation_id, Conversations.user_id == user_id).options(selectinload(Conversations.messages))
+        query = (
+            select(Conversations)
+            .where(
+                Conversations.id == conversation_id,
+                Conversations.user_id == current_user.id,
+            )
+            .options(selectinload(Conversations.messages))
+        )
         result = await session.execute(query)
         conversation = result.scalar_one_or_none()
         if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise ConversationNotFoundException()
         message_history = messages_to_model_messages(conversation.messages)
     else:
-        title_generation_prompt = "Suggest a short, concise title for the following user query. " f"Respond with only the title and nothing else: '{payload.user_input}'"
+        title_generation_prompt = f"Suggest a short, concise title for the following user query. Respond with only the title and nothing else: '{payload.user_input}'"
         generated_title = (await agent.run(title_generation_prompt)).output
 
-        conversation = Conversations(title=generated_title.strip().strip('"'), user_id=user_id)
+        conversation = Conversations(
+            title=generated_title.strip().strip('"'),
+            user_id=current_user.id,
+        )
         session.add(conversation)
-        await session.flush()  # 刷新以获取新 conversation.id
+        await session.flush()
 
-    # 保存用户的消息
-    user_message = Messages(conversation_id=conversation.id, role="user", content=payload.user_input)
+    user_message = Messages(conversation_id=conversation.id, role=MessageRole.USER, user_id=current_user.id, content=payload.user_input)
     session.add(user_message)
     await session.flush()
 
     async def stream_and_save_response():
-        """
-        这个生成器有两个职责：
-        1. 实时地将 LLM 的块(chunk) yield 给客户端。
-        2. 在流结束后，将完整的消息保存到数据库。
-        """
         full_response_content = ""
         try:
             async with agent.run_stream(payload.user_input, message_history=message_history) as result:
@@ -70,17 +78,16 @@ async def chat(
                     full_response_content += piece
                     yield f"data: {piece}\n\n"
 
-            # 2. 流结束后，保存完整的助手消息
-            if full_response_content:  # 确保有内容才保存
-                assistant_message = Messages(conversation_id=conversation.id, role="assistant", content=full_response_content)
+            if full_response_content:
+                assistant_message = Messages(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_response_content,
+                )
                 session.add(assistant_message)
-                # 这里的 flush 和 commit 将由 get_session 依赖自动处理
         except Exception as e:
-            # 处理流式传输或保存过程中的错误
-            print(f"An error occurred during streaming/saving: {e}")
-            # 你也可以在这里 yield 一个错误消息给客户端
-            yield "error: An error occurred processing your request.\n\n"
+            logger.error(f"An error occurred during streaming/saving: {e}", exc_info=True)
+            yield "data: error: An error occurred processing your request.\n\n"
 
-    # 在响应头中返回 conversation_id，方便客户端跟进
     headers = {"X-Conversation-Id": str(conversation.id)}
     return StreamingResponse(stream_and_save_response(), media_type="text/event-stream", headers=headers)

@@ -13,7 +13,7 @@ class Conversations(PKMixin, TimestampsMixin, Base):
     __tablename__ = "conversations"
 
     title = Column(String, nullable=False)
-    user_id = Column(Integer, nullable=True)
+    user_id = Column(Integer, nullable=False, index=True)
 
     messages = relationship(
         "Messages",

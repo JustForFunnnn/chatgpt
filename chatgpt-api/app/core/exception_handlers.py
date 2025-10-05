@@ -4,18 +4,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette import status
 
-from app.exceptions.app import AppBaseException, DatabaseError
-from app.exceptions.http import HttpBaseException, HttpErrorCode
+from app.exceptions.app_error import AppBaseError, DatabaseError
+from app.exceptions.http_exceptions import HttpBaseException
 
 logger = logging.getLogger("app")
 
 
 async def http_base_exception_handler(request: Request, exc: HttpBaseException):
     log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
-    logger.log(
-        log_level,
-        f"Custom HTTP error occurred: {exc.detail} (status_code: {exc.status_code})"
-    )
+    logger.log(log_level, f"Custom HTTP error, error_code: {exc.error_code}, message: {exc.message}")
     return JSONResponse(
         status_code=exc.status_code,
         content=exc.detail,
@@ -25,10 +22,7 @@ async def http_base_exception_handler(request: Request, exc: HttpBaseException):
 
 async def generic_http_exception_handler(request: Request, exc: HTTPException):
     log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
-    logger.log(
-        log_level,
-        f"Generic HTTP error occurred: {exc.detail} (status_code: {exc.status_code})"
-    )
+    logger.log(log_level, f"Generic HTTP error, status_code: {exc.status_code}, detail: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={"error_code": "GENERIC_HTTP_ERROR", "message": exc.detail},
@@ -37,17 +31,15 @@ async def generic_http_exception_handler(request: Request, exc: HTTPException):
 
 
 async def database_exception_handler(request: Request, exc: DatabaseError):
+    logger.error(f"Database error, error_code: {exc.error_code}, message: {exc.message}")
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "error_code": exc.error_code.value,
-            "message": "The service is temporarily unavailable due to a database issue."
-        },
+        content={"error_code": exc.error_code.value, "message": "The service is temporarily unavailable due to a database issue."},
     )
 
 
-async def app_exception_handler(request: Request, exc: AppBaseException):
-    logger.warning(f"Business logic error: {exc.detail} (error_code: {exc.error_code})")
+async def app_exception_handler(request: Request, exc: AppBaseError):
+    logger.warning(f"App error, error_code: {exc.error_code}, message: {exc.message}")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error_code": exc.error_code.value, "message": exc.detail},
@@ -66,6 +58,5 @@ def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(HttpBaseException, http_base_exception_handler)
     app.add_exception_handler(HTTPException, generic_http_exception_handler)
     app.add_exception_handler(DatabaseError, database_exception_handler)
-    app.add_exception_handler(AppBaseException, app_exception_handler)
+    app.add_exception_handler(AppBaseError, app_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
-
