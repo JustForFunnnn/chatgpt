@@ -1,6 +1,7 @@
-from pydantic_ai import Agent
+from pydantic_ai import Agent, Tool
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.azure import AzureProvider
+
 
 from app.core.config import settings
 from app.llm.tools import duckduckgo_search
@@ -16,8 +17,6 @@ General Rules:
 Tool Use:
 1. When using `duckduckgo_search`:
    - You MUST cite sources.
-   - Base the answer only on the tool's results. Do not mix in internal knowledge.
-   - If results are insufficient or empty, say so and ask for a refined query.
    - After the answer, add a 'Sources' section with Markdown links(eg: [Source Title](https://example.com)).
 """
 
@@ -36,7 +35,7 @@ def new_agent() -> Agent:
         model=model,
         system_prompt=SYSTEM_PROMPT,
         tools=[
-            duckduckgo_search,
+            Tool(duckduckgo_search, takes_ctx=False),
         ],
     )
     return agent

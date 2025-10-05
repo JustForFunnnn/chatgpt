@@ -1,7 +1,9 @@
 import logging
 
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from pydantic import Field
+
+import anyio
 
 logger = logging.getLogger("app")
 
@@ -14,8 +16,8 @@ async def duckduckgo_search(query: str = Field(..., description="The search quer
     logger.info(f"Tool 'duckduckgo_search' called with query: {query}")
 
     try:
-        async with DDGS() as ddgs:
-            results = [r async for r in ddgs.text(query, max_results=5)]
+        with DDGS() as ddgs_obj:
+            results = await anyio.to_thread.run_sync(lambda: ddgs_obj.text(query, max_results=5))
 
         if not results:
             return f"No results were found for the query '{query}'. "
@@ -27,4 +29,4 @@ async def duckduckgo_search(query: str = Field(..., description="The search quer
         return formatted_items
     except Exception as e:
         logger.error(f"An error occurred during DuckDuckGo search for query '{query}': {e}", exc_info=True)
-        return "An unexpected error occurred while trying to search the internet. " "Please inform the user that the search tool is temporarily unavailable."
+        return "An unexpected error occurred while trying to search the internet, please inform the user that the search tool is temporarily unavailable."
