@@ -5,15 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.exceptions.http_exceptions import DuplicatedUserNameException, InvalidCredentialsException
 from app.models import User
-from app.schemas.token import TokenSchema
+from app.schemas import TokenSchema
 from app.schemas.user import UserCreateSchema, UserSchema
-from app.services.auth import (
+from app.services.security import (
     create_access_token,
-    get_current_user,
     get_password_hash,
-    get_user_by_name,
     verify_password,
 )
+from app.services.user import create_user, get_current_user, get_user_by_name
 
 router = APIRouter()
 
@@ -28,9 +27,7 @@ async def register_user(
         raise DuplicatedUserNameException()
 
     hashed_password = get_password_hash(user_in.password)
-    new_user = User(username=user_in.username, hashed_password=hashed_password)
-    session.add(new_user)
-    await session.flush()
+    new_user = await create_user(session, user_in.username, hashed_password)
 
     return new_user
 

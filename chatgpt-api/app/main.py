@@ -4,22 +4,19 @@ from logging.config import dictConfig
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, chat, conversation
+from app.core.config import settings
+from app.api.v1 import chat, conversation, user
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging_config import LOGGING_CONFIG
 
 dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("app")
 
-origins = [
-    "http://localhost:3000",
-]
-
 
 def config_app(app: FastAPI):
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -28,7 +25,7 @@ def config_app(app: FastAPI):
     # Include API router
     app.include_router(chat.router, prefix="/api/v1")
     app.include_router(conversation.router, prefix="/api/v1")
-    app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(user.router, prefix="/api/v1")
 
     # Register exception handers and print log
     register_exception_handlers(app)

@@ -8,6 +8,7 @@ class HttpErrorCode(str, Enum):
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     DUPLICATED_USER_NAME = "DUPLICATED_USER_NAME"
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+    USER_NOT_FOUND = "USER_NOT_FOUND"
 
 
 class HttpBaseException(HTTPException):
@@ -39,7 +40,7 @@ class InvalidCredentialsException(HttpBaseException):
 class DuplicatedUserNameException(HttpBaseException):
     def __init__(self, message: str = "Duplicated user name."):
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             error_code=HttpErrorCode.DUPLICATED_USER_NAME,
             message=message,
         )

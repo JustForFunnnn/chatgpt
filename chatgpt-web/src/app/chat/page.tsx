@@ -75,12 +75,6 @@ const api = {
         const data: ConversationDetail = await response.json();
         return data.messages;
     },
-    postLogout: async () => {
-        // This remains mocked for now as there is no backend endpoint
-        console.log("API: POST /api/v1/logout");
-        await new Promise(res => setTimeout(res, 200));
-        return { success: true };
-    },
     postChat: async (payload: { conversationId: number | null; message: string; }): Promise<Response> => {
         console.log("API: POST /api/v1/chat", payload);
         const response = await fetch(`${API_BASE_URL}/api/v1/chat`, {

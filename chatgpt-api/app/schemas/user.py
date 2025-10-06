@@ -1,4 +1,17 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class JwtTokenPayloadSchema(BaseModel):
+    sub: str  # user id
+    username: str
+    exp: datetime
+
+
+class TokenSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 
 class UserCreateSchema(BaseModel):
@@ -10,5 +23,4 @@ class UserSchema(BaseModel):
     id: int
     username: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

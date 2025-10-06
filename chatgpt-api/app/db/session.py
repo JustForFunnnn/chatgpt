@@ -21,6 +21,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         except SQLAlchemyError as e:
             await session.rollback()
             raise DatabaseError(message=f"Database error: {e}")
-        except Exception as exc:
+        except Exception:
             await session.rollback()
             raise
