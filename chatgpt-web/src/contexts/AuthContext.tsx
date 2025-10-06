@@ -4,9 +4,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect, FC } 
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode"
 
-/**
- * User information decoded from the JWT token.
- */
+
 interface UserPayload {
     sub: string;
     username: string;
@@ -30,11 +28,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const ACCESS_TOKEN_KEY = "accessToken";
+const ACCESS_TOKEN_STORAGE_KEY = "chatgpt_web_access_token";
 
-/**
- * AuthProvider component that provides authentication state and management functions to the entire application.
- */
+
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<UserPayload | null>(null);
@@ -45,31 +41,37 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return Date.now() >= exp * 1000;
     };
 
-    const handleTokenChange = (newToken: string | null) => {
-        setToken(newToken);
-        if (newToken) {
-            try {
-                const decodedUser = jwtDecode<UserPayload>(newToken);
-                setUser(decodedUser);
-                localStorage.setItem(ACCESS_TOKEN_KEY, newToken);
-            } catch (error) {
-                console.error("Failed to decode JWT:", error);
-                setUser(null);
-                setToken(null);
-                localStorage.removeItem(ACCESS_TOKEN_KEY);
-            }
-        } else {
-            // logout
-            setUser(null);
-            localStorage.removeItem(ACCESS_TOKEN_KEY);
+    const clearAuthState = () => {
+        setUser(null);
+        setToken(null);
+        try {
+            localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        } catch (error) {
+            console.error("Could not access localStorage to logout:", error);
+        }
+    }
+
+    const setAuthInfo = (newToken: string | null) => {
+        if (!newToken) {
+            clearAuthState();
+            return;
+        }
+
+        try {
+            const decodedUser = jwtDecode<UserPayload>(newToken);
+            setToken(newToken);
+            setUser(decodedUser);
+            localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, newToken);
+        } catch (error) {
+            console.error("Failed to decode JWT or token is invalid:", error);
+            clearAuthState();
         }
     };
 
-    // Synchronizes authentication state from localStorage when the component first loads.
     useEffect(() => {
         try {
-            const storedToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-            handleTokenChange(storedToken);
+            const storedToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+            setAuthInfo(storedToken);
         } catch (error) {
             console.error("Failed to access localStorage:", error);
         } finally {
@@ -77,20 +79,14 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
     }, []);
 
-    /**
-     * This function is called after a successful login.
-     * @param {string} newToken - The new access token obtained from the API.
-     */
+
     const login = (newToken: string) => {
-        handleTokenChange(newToken);
+        setAuthInfo(newToken);
         router.replace('/fake-chat'); // TODO update
     };
     
-    /**
-     * Call this function to log out the user.
-     */
     const logout = () => {
-        handleTokenChange(null);
+        clearAuthState();
         router.replace('/login');
     };
 
@@ -103,10 +99,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     );
 };
 
-/**
- * A custom hook for easy access to the authentication context within components.
- * @returns {AuthContextType} The context object containing token, login, logout, and isLoading.
- */
+
 export const useAuth = (): AuthContextType => {
     // useContext(AuthContext) traverses up the component tree to find the nearest <AuthContext.Provider>.
     // If it reaches the top without finding a provider, it returns the default value provided

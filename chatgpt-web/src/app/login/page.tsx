@@ -4,9 +4,8 @@ import React, { useState, FC, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
-import {  LockIcon } from '@/components/ui/LockIcon'
-import {  UserIcon } from '@/components/ui/UserIcon'
-import { loginUser } from "@/api/gptApi"
+import {  LockIcon, UserIcon } from '@/components/ui/icons'
+import { loginUser } from "@/api/client"
 
 
 export default function LoginPage() {

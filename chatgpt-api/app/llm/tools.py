@@ -72,7 +72,7 @@ async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
     Call when time-sensitive, niche, or uncertain.
 
     **MANDATORY COMPLIANCE:**
-    - If this tool is used, the final answer **MUST** include both inline numeric citations `[n]` and a final 'DuckDuckGo Search Sources' section with Markdown links.
+    - If this tool is used, the final answer **MUST** include both inline numeric citations `[n]` and a final `**DuckDuckGo Search Sources**` section with Markdown links (e.g., `[Source Title](https://example.com)`).
     - Prefer primary/official sources when available.
     - Call this tool at most 2 times per user query.
 

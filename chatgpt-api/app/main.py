@@ -20,6 +20,7 @@ def config_app(app: FastAPI):
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Conversation-Id"],
     )
 
     # Include API router

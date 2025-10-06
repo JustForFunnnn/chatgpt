@@ -3,9 +3,8 @@
 import React, { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
-import {  LockIcon } from '@/components/ui/LockIcon'
-import {  UserIcon } from '@/components/ui/UserIcon'
-import { registerUser } from "@/api/gptApi"
+import {  LockIcon, UserIcon } from '@/components/ui/icons'
+import { registerUser } from "@/api/client"
 
 export default function RegisterPage() {
     const [username, setUsername] = useState<string>('');

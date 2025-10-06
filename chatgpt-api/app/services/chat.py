@@ -17,15 +17,12 @@ logger = logging.getLogger("app")
 
 
 class SSEvent:
-    def __init__(self, type: SSEventType, text: str = None):
+    def __init__(self, type: SSEventType, data: str = None):
         self.type = type
-        payload: dict[str, Any] = {}
-        if text is not None:
-            payload["text"] = text
-        self.payload = payload
+        self.data = data
 
     def __str__(self) -> str:
-        body = json.dumps(self.payload, ensure_ascii=False)
+        body = json.dumps(self.data, ensure_ascii=False)
         return f"event: {self.type.value}\ndata: {body}\n\n"
 
 
@@ -77,7 +74,7 @@ async def create_conversation(session: AsyncSession, title: str, user_id: int) -
         user_id=user_id,
     )
     session.add(conversation)
-    await session.flush()
+    await session.commit()
     return conversation
 
 
@@ -89,5 +86,5 @@ async def create_message(session: AsyncSession, conversation_id: int, user_id: i
         content=content,
     )
     session.add(message)
-    await session.flush()
+    await session.commit()
     return message

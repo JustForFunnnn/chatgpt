@@ -1,37 +1,44 @@
 import { ApiError } from './errors';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+// It's good practice to have this in a .env file
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 // --- Type Definitions for API Schemas ---
 // These interfaces match the data structures from your backend Pydantic schemas.
 
 /**
+ * Defines the possible roles for a message author.
+ * Corresponds to `MessageRole` enum in the backend.
+ */
+export type MessageRole = 'user' | 'assistant';
+
+/**
  * Represents a single message in a conversation.
  * Corresponds to `MessageSchema`.
  */
-interface Message {
+export interface Message {
     id: number;
-    role: 'user' | 'assistant';
+    role: MessageRole;
     content: string;
-    created_at: string;
+    created_at: string; // ISO 8601 date string
 }
 
 /**
  * Represents a conversation summary.
  * Corresponds to `ConversationSchema`.
  */
-interface Conversation {
+export interface Conversation {
     id: number;
     title: string;
-    created_at: string;
-    updated_at: string;
+    created_at: string; // ISO 8601 date string
+    updated_at: string; // ISO 8601 date string
 }
 
 /**
  * Represents a detailed conversation including all its messages.
  * Corresponds to `ConversationDetailSchema`.
  */
-interface ConversationDetail extends Conversation {
+export interface ConversationDetail extends Conversation {
     messages: Message[];
 }
 
@@ -39,7 +46,7 @@ interface ConversationDetail extends Conversation {
  * Represents user information.
  * Corresponds to `UserSchema`.
  */
-interface User {
+export interface User {
     id: number;
     username: string;
 }
@@ -48,8 +55,9 @@ interface User {
  * Represents the authentication token response.
  * Corresponds to `TokenSchema`.
  */
-interface Token {
+export interface Token {
     access_token: string;
+    token_type: string;
 }
 
 
@@ -63,14 +71,15 @@ interface Token {
  * @throws {ApiError} - Throws a custom error with details if the request fails.
  */
 const handleResponse = async (response: Response) => {
-    const data = await response.json().catch(() => ({})); // Gracefully handle non-json responses
+    // Gracefully handle non-json or empty responses for success cases (e.g., 204 No Content)
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
 
     if (!response.ok) {
         const message = data.message || 'An unknown API error occurred.';
         const errorCode = data.error_code;
-        const details = (typeof data.detail === 'object' && data.detail !== null) 
-            ? data.detail 
-            : { form: message };
+        // Use the full data object as detail if a specific 'detail' field is not present
+        const details = data.detail || data; 
         throw new ApiError(message, details, errorCode);
     }
     
@@ -84,18 +93,35 @@ const handleResponse = async (response: Response) => {
  * @param {string} token - The JWT token for authorization.
  * @returns {Promise<Response>} - The raw fetch response.
  */
-const fetchWithAuth = (url: string, options: RequestInit, token: string) => {
-    const headers = {
-        'Content-Type': 'application/json',
+const fetchWithAuth = (url: string, options: RequestInit, token: string): Promise<Response> => {
+    const headers: HeadersInit = {
         ...options.headers,
         'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
     };
     return fetch(url, { ...options, headers });
 };
 
 
-// --- Exported Auth API Functions ---
-// Note: These functions are typically in their own file like `lib/authApi.ts`
+// --- API Functions ---
+
+// SECTION: Authentication
+
+/**
+ * Registers a new user.
+ * @param {string} username - The desired username.
+ * @param {string} password - The desired password.
+ * @returns {Promise<User>} - The newly created user's information.
+ */
+export const registerUser = async (username: string, password: string): Promise<User> => {
+    console.log("API: POST /api/v1/register");
+    const response = await fetch(`${API_BASE_URL}/api/v1/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    });
+    return handleResponse(response);
+};
 
 /**
  * Logs in a user. Matches backend expecting form data.
@@ -104,6 +130,7 @@ const fetchWithAuth = (url: string, options: RequestInit, token: string) => {
  * @returns {Promise<Token>} - The login response containing the access token.
  */
 export const loginUser = async (username: string, password: string): Promise<Token> => {
+    console.log("API: GET /api/v1/login");
     const formData = new URLSearchParams();
     formData.append('username', username);
     formData.append('password', password);
@@ -117,26 +144,25 @@ export const loginUser = async (username: string, password: string): Promise<Tok
 };
 
 /**
- * Registers a new user.
- * @param {string} username - The desired username.
- * @param {string} password - The desired password.
- * @returns {Promise<User>} - The newly created user's information.
+ * Logs out the current user.
+ * The backend is stateless, so this is mainly for the client to know
+ * it should clear its local token.
+ * @param {string} token - The user's JWT token.
+ * @returns {Promise<any>} - The successful logout response.
  */
-export const registerUser = async (username: string, password: string): Promise<User> => {
-    const response = await fetch(`${API_BASE_URL}/api/v1/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-    });
+export const logoutUser = async (token: string): Promise<any> => {
+    console.log("API: POST /api/v1/logout");
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/logout`, { method: 'POST' }, token);
     return handleResponse(response);
 };
 
 
-// --- Exported Chat API Functions ---
+// SECTION: Conversations
 
 /**
  * Fetches all conversations for the authenticated user.
  * @param {string} token - The user's JWT token.
+ * @returns {Promise<Conversation[]>} - A list of the user's conversations.
  */
 export const getConversations = async (token: string): Promise<Conversation[]> => {
     console.log("API: GET /api/v1/conversations");
@@ -145,43 +171,44 @@ export const getConversations = async (token: string): Promise<Conversation[]> =
 };
 
 /**
- * Fetches messages for a specific conversation.
+ * Fetches a specific conversation including its messages.
+ * [MODIFIED] This now returns the complete ConversationDetail object to match the backend.
  * @param {object} params - The parameters object.
  * @param {number} params.id - The ID of the conversation.
  * @param {string} params.token - The user's JWT token.
+ * @returns {Promise<ConversationDetail>} - The full conversation details.
  */
-export const getConversationMessages = async ({ id, token }: { id: number; token: string }): Promise<Message[]> => {
+export const getConversationDetail = async ({ id, token }: { id: number; token: string }): Promise<ConversationDetail> => {
     console.log(`API: GET /api/v1/conversations/${id}`);
     const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/conversations/${id}`, { method: 'GET' }, token);
-    const data: ConversationDetail = await handleResponse(response);
-    return data.messages;
+    return handleResponse(response);
 };
 
+
+// SECTION: Chat
+
 /**
- * Posts a new chat message and returns a streamable response.
+ * Posts a new chat message and returns a streamable response for Server-Sent Events (SSE).
  * The request body matches the backend's `ChatRequestSchema`.
+ * The calling component is responsible for reading the stream from the returned Response object.
  * @param {object} params - The parameters object.
  * @param {number | null} params.conversationId - The ID of the conversation, or null for a new one.
  * @param {string} params.message - The user's input message.
  * @param {string} params.token - The user's JWT token.
+ * @returns {Promise<Response>} - The raw Response object to be processed as a stream.
  */
 export const postChat = async ({ conversationId, message, token }: { conversationId: number | null; message: string; token: string }): Promise<Response> => {
     console.log("API: POST /api/v1/chat", { conversationId, message });
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/chat`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({
             conversation_id: conversationId,
             user_input: message
         }),
-    });
+    }, token);
 
     if (!response.ok) {
-        // For streaming responses, we handle errors before returning the raw stream.
         const errorData = await response.json().catch(() => ({}));
         throw new ApiError(
             errorData.message || "Failed to send message",
@@ -190,6 +217,5 @@ export const postChat = async ({ conversationId, message, token }: { conversatio
         );
     }
     
-    return response; // Return the raw Response object for streaming
+    return response
 };
-
