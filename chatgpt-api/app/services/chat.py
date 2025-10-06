@@ -66,11 +66,7 @@ async def get_user_conversation_with_messages(session: AsyncSession, conversatio
 
 
 async def list_user_conversations(session: AsyncSession, user_id: int) -> List[Conversation]:
-    query = (
-        select(Conversation)
-        .where(Conversation.user_id == user_id)
-        .order_by(Conversation.updated_at.desc())
-    )
+    query = select(Conversation).where(Conversation.user_id == user_id).order_by(Conversation.updated_at.desc())
     result = await session.execute(query)
     return result.scalars().all()
 

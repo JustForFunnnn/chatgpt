@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.exceptions.http_exceptions import ConversationNotFoundException
-from app.models import Conversation, User
+from app.models import User
 from app.schemas import ConversationDetailSchema, ConversationSchema
 from app.services.chat import get_user_conversation_with_messages, list_user_conversations
 from app.services.user import get_current_user
@@ -18,7 +17,6 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
 ):
     return await list_user_conversations(session, current_user.id)
-
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetailSchema)

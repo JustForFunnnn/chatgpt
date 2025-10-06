@@ -1,7 +1,7 @@
-from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
@@ -9,7 +9,7 @@ class AppSettings(BaseSettings):
 
     DATABASE_URL: SecretStr
     JWT_SECRET_KEY: SecretStr
-    
+
     BACKEND_CORS_ORIGINS: List[str] = []
 
     # OPENAI

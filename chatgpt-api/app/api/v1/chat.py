@@ -12,7 +12,7 @@ from app.exceptions.http_exceptions import ConversationNotFoundException
 from app.llm import get_agent
 from app.llm.tools import suggest_title
 from app.models import User
-from app.schemas import ChatRequestSchema, GeneratedTitleOutputSchema
+from app.schemas import ChatRequestSchema
 from app.services.chat import (
     SSEvent,
     create_conversation,

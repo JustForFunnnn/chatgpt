@@ -7,7 +7,7 @@ from typing import List
 import httpx
 from ddgs import DDGS
 from markitdown import MarkItDown
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_ai import Agent
 
 from app.schemas.chat import GeneratedTitleOutputSchema
@@ -72,7 +72,7 @@ async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
     Call when time-sensitive, niche, or uncertain.
 
     **MANDATORY COMPLIANCE:**
-    - If this tool is used, the final answer **MUST** include both inline numeric citations `[n]` and a final 'Sources' section with Markdown links.
+    - If this tool is used, the final answer **MUST** include both inline numeric citations `[n]` and a final 'DuckDuckGo Search Sources' section with Markdown links.
     - Prefer primary/official sources when available.
     - Call this tool at most 2 times per user query.
 
@@ -86,7 +86,7 @@ async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
     try:
 
         def _search():
-            with DDGS() as ddgs_obj:
+            with DDGS(timeout=10) as ddgs_obj:
                 return list(ddgs_obj.text(query, max_results=10))
 
         resp = await asyncio.to_thread(_search)
