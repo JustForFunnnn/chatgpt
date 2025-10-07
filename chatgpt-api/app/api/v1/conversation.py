@@ -29,10 +29,8 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
 ):
     cs =  await list_user_conversations(session, current_user.id)
-    logging.info(f"cs len: {len(cs)}, cs ids: {[c.id for c in cs]}")
 
     conversation = await get_user_conversation_with_messages(session, conversation_id, current_user.id)
-    logging.info(f"conversation_id: {conversation_id}, current_user: {current_user.id}, conversation: {conversation}")
     if not conversation:
         raise ConversationNotFoundException()
     

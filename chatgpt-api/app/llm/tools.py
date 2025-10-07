@@ -84,7 +84,6 @@ async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
     logger.info(f"Tool 'duckduckgo_search' called with query: {query}")
 
     try:
-
         def _search():
             with DDGS(timeout=10) as ddgs_obj:
                 return list(ddgs_obj.text(query, max_results=10))
