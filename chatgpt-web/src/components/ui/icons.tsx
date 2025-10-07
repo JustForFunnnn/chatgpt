@@ -3,7 +3,18 @@ import React, { FC, SVGProps } from "react";
 const cx = (base: string, extra?: string) => (extra ? `${base} ${extra}` : base);
 
 export const MenuIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-6 h-6", className)} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-6 h-6", className)}
+    stroke="currentColor"
+    fill="none"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <line x1="3" y1="12" x2="21" y2="12"></line>
     <line x1="3" y1="6" x2="21" y2="6"></line>
     <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -11,31 +22,84 @@ export const MenuIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) =
 );
 
 export const SunIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-5 h-5", className)} stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-5 h-5", className)}
+    stroke="currentColor"
+    fill="currentColor"
+    strokeWidth="0"
+    viewBox="0 0 24 24"
+    {...props}
+  >
     <path d="M6.993 12c0 2.761 2.246 5.007 5.007 5.007s5.007-2.246 5.007-5.007-2.246-5.007-5.007-5.007S6.993 9.239 6.993 12zM12 8.993c1.658 0 3.007 1.349 3.007 3.007S13.658 15.007 12 15.007 8.993 13.658 8.993 12 10.342 8.993 12 8.993zM10.993 19h2v3h-2zm0-17h2v3h-2zm-9 9h3v2h-3zm17 0h3v2h-3zM4.219 18.363l2.122-2.122 1.414 1.414-2.122 2.122zM16.24 6.344l2.122-2.122 1.414 1.414-2.122 2.122zM6.344 7.758 4.222 5.636l1.414-1.414 2.122 2.122zm13.434 10.605-1.414 1.414-2.122-2.122 1.414-1.414z"></path>
   </svg>
 );
 
 export const MoonIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-5 h-5", className)} stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-5 h-5", className)}
+    stroke="currentColor"
+    fill="currentColor"
+    strokeWidth="0"
+    viewBox="0 0 24 24"
+    {...props}
+  >
     <path d="M12 11.807A9.002 9.002 0 0 1 10.049 2a9.942 9.942 0 0 0-5.12 2.735c-3.905 3.905-3.905 10.237 0 14.142 3.906 3.906 10.237 3.905 14.143 0a9.946 9.946 0 0 0 2.735-5.119A9.003 9.003 0 0 1 12 11.807z"></path>
   </svg>
 );
 
 export const ChevronDownIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-6 h-6 text-gray-600 dark:text-gray-300", className)} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-6 h-6 text-gray-600 dark:text-gray-300", className)}
+    stroke="currentColor"
+    fill="none"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <polyline points="6 9 12 15 18 9"></polyline>
   </svg>
 );
 
 export const Spinner: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-10 h-10 animate-spin text-blue-500 mx-auto mb-4", className)} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-10 h-10 animate-spin text-blue-500 mx-auto mb-4", className)}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
   </svg>
 );
 
 export const LogoutIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-5 h-5", className)} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-5 h-5", className)}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
     <polyline points="16 17 21 12 16 7"></polyline>
     <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -43,7 +107,18 @@ export const LogoutIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props })
 );
 
 export const CloseIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("w-6 h-6", className)} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("w-6 h-6", className)}
+    stroke="currentColor"
+    fill="none"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
@@ -56,20 +131,55 @@ export const NewIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) =>
 );
 
 export const LockIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("h-5 w-5 text-gray-400", className)} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("h-5 w-5 text-gray-400", className)}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
   </svg>
 );
 
 export const UserIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
-  <svg aria-hidden="true" focusable="false" className={cx("h-5 w-5 text-gray-400", className)} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={cx("h-5 w-5 text-gray-400", className)}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
     <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
     <circle cx="12" cy="7" r="4"></circle>
   </svg>
 );
 
-export const ErrorIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) =>  (
-  <svg aria-hidden="true" focusable="false" className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+export const ErrorIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M12 8V12" />
     <path d="M12 16.0195V16" />
     <circle cx="12" cy="12" r="10" />

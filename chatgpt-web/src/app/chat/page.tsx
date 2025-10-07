@@ -1,13 +1,9 @@
 "use client";
 
-import React, { 
-    useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent,
-} from "react";
+import React, { useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon,
-} from "@/components/ui/icons";
+import { MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon } from "@/components/ui/icons";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -92,8 +88,8 @@ function useConversations(token: string | null) {
       const convs = await api.getConversations(token);
       setConversations(convs);
     } catch (err) {
-        console.error("Failed to load conversations", err);
-        setError("Failed to load message history.");
+      console.error("Failed to load conversations", err);
+      setError("Failed to load message history.");
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +135,7 @@ function useChat(conversationId: number | null, token: string | null) {
         setError("Authentication token not found.");
         return;
       }
-      
+
       setIsStreaming(true);
       setError(null);
 
@@ -153,7 +149,6 @@ function useChat(conversationId: number | null, token: string | null) {
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimisticUserMessage]);
-      
 
       try {
         const response = await api.postChat({ conversationId, message: trimmedInput, token });
@@ -161,19 +156,16 @@ function useChat(conversationId: number | null, token: string | null) {
         const newConversationIdHeader = response.headers.get("X-Conversation-Id");
         const newConversationId = newConversationIdHeader ? parseInt(newConversationIdHeader, 10) : null;
 
-        if (!response.body) 
-            throw new Error("No response body");
-
+        if (!response.body) throw new Error("No response body");
 
         const assistantMessageId = Date.now() + 1;
         const placeholderAssistantMessage: Message = {
-            id: assistantMessageId,
-            role: "assistant",
-            content: "",
-            created_at: new Date().toISOString(),
+          id: assistantMessageId,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
         };
-            setMessages((prev) => [...prev, placeholderAssistantMessage]);
-
+        setMessages((prev) => [...prev, placeholderAssistantMessage]);
 
         await streamResponse(response.body, assistantMessageId, setMessages);
 
@@ -187,7 +179,7 @@ function useChat(conversationId: number | null, token: string | null) {
         setIsStreaming(false);
       }
     },
-    [conversationId, token]
+    [conversationId, token],
   );
 
   return { messages, isLoading, isStreaming, error, sendMessage };
@@ -196,12 +188,11 @@ function useChat(conversationId: number | null, token: string | null) {
 async function streamResponse(
   body: ReadableStream<Uint8Array>,
   assistantMessageId: number,
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
 ) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const streamParser = new SSEStreamParser();
-
 
   while (true) {
     const { value, done } = await reader.read();
@@ -216,13 +207,7 @@ async function streamResponse(
           try {
             const text = JSON.parse(event.data);
             if (typeof text === "string") {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? { ...msg, content: msg.content + text }
-                    : msg
-                )
-              );
+              setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, content: msg.content + text } : msg)));
             }
           } catch (e) {
             console.error("Error parsing SSE JSON data:", event.data, e);
@@ -239,7 +224,6 @@ async function streamResponse(
     }
   }
 }
-
 
 const UserPanel = memo(() => {
   const { user, logout } = useAuth();
@@ -260,11 +244,7 @@ const UserPanel = memo(() => {
         >
           {theme === "light" ? <MoonIcon /> : <SunIcon />}
         </button>
-        <button
-          onClick={logout}
-          title="Logout"
-          className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
-        >
+        <button onClick={logout} title="Logout" className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700">
           <LogoutIcon />
         </button>
       </div>
@@ -273,14 +253,10 @@ const UserPanel = memo(() => {
 });
 UserPanel.displayName = "UserPanel";
 
-
 const SkeletonLoader: FC = () => (
   <div className="space-y-3 pt-2">
     {[...Array(5)].map((_, i) => (
-      <div
-        key={i}
-        className="w-full h-8 bg-gray-300 dark:bg-gray-700 rounded-md animate-pulse"
-      />
+      <div key={i} className="w-full h-8 bg-gray-300 dark:bg-gray-700 rounded-md animate-pulse" />
     ))}
   </div>
 );
@@ -294,63 +270,48 @@ interface SidebarProps {
   isLoading: boolean;
   loadError: string | null;
 }
-const Sidebar = memo<SidebarProps>(
-  ({ isOpen, onClose, onSelectConversation, conversations, selectedId, isLoading, loadError }) => (
-    <>
-      <div
-        className={`fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden ${
-          isOpen ? "block" : "hidden"
-        }`}
-        onClick={onClose}
-      />
-      <div
-        data-ag-ui-component="sidebar"
-        className={`bg-gray-200 dark:bg-gray-800 p-4 flex flex-col w-80 h-full fixed z-30 md:relative md:translate-x-0 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex items-center mb-4">
-          <button
-            onClick={() => onSelectConversation(null)}
-            className="flex-1 bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <NewIcon />
-            New Chat
-          </button>
-          <button
-            onClick={onClose}
-            className="p-2 ml-2 md:hidden rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <h2 className="text-lg font-semibold mb-2 px-2">History</h2>
-            {isLoading ? (
-                <SkeletonLoader />
-            ) : loadError ? (
-                <ErrorInfo message={loadError} />
-            ) : (
-                conversations.map((conv) => (
-                <div
-                    key={conv.id}
-                    onClick={() => onSelectConversation(conv.id)}
-                    className={`p-3 rounded-lg cursor-pointer mb-1 truncate text-sm ${
-                    selectedId === conv.id
-                        ? "bg-blue-500 text-white"
-                        : "hover:bg-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                >
-                    {conv.title || `Chat from ${formatTimestamp(conv.created_at)}`}
-                </div>
-                ))
-            )}
-        </div>
-        <UserPanel />
+const Sidebar = memo<SidebarProps>(({ isOpen, onClose, onSelectConversation, conversations, selectedId, isLoading, loadError }) => (
+  <>
+    <div
+      data-ag-ui-component="sidebar"
+      className={`bg-gray-200 dark:bg-gray-800 p-4 flex flex-col w-80 h-full fixed z-30 md:relative md:translate-x-0 transform transition-transform duration-300 ease-in-out ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      <div className="flex items-center mb-4">
+        <button
+          onClick={() => onSelectConversation(null)}
+          className="flex-1 bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+        >
+          <NewIcon />
+          New Chat
+        </button>
+        <button onClick={onClose} className="p-2 ml-2 md:hidden rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700">
+          <CloseIcon />
+        </button>
       </div>
-    </>
-  )
-);
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <h2 className="text-lg font-semibold mb-2 px-2">History</h2>
+        {isLoading ? (
+          <SkeletonLoader />
+        ) : loadError ? (
+          <ErrorInfo message={loadError} />
+        ) : (
+          conversations.map((conv) => (
+            <div
+              key={conv.id}
+              onClick={() => onSelectConversation(conv.id)}
+              className={`p-3 rounded-lg cursor-pointer mb-1 truncate text-sm ${selectedId === conv.id ? "bg-blue-500 text-white" : "hover:bg-gray-300 dark:hover:bg-gray-700"}`}
+            >
+              {conv.title || `Chat from ${formatTimestamp(conv.created_at)}`}
+            </div>
+          ))
+        )}
+      </div>
+      <UserPanel />
+    </div>
+  </>
+));
 Sidebar.displayName = "Sidebar";
 
 export const MemoizedMarkdown = ({ content }: { content: string }) => {
@@ -379,15 +340,17 @@ interface MessageBubbleProps {
 export const MessageBubble = memo<MessageBubbleProps>(({ msg, isTyping }) => {
   const [isTypingStyleBubble, setIsTypingStyleBubble] = useState(isTyping);
 
+  const [displayedContent, setDisplayedContent] = useState(isTypingStyleBubble ? "" : msg.content);
 
-  const [displayedContent, setDisplayedContent] = useState(
-    isTypingStyleBubble ? "" : msg.content
-  );
+  useEffect(() => {
+    if (isTyping && !isTypingStyleBubble) {
+      setIsTypingStyleBubble(true);
+    }
+  }, [isTyping, isTypingStyleBubble]);
 
   useEffect(() => {
     if (isTypingStyleBubble) {
       if (displayedContent.length === msg.content.length) {
-        setIsTypingStyleBubble(false)
         return;
       }
 
@@ -400,33 +363,20 @@ export const MessageBubble = memo<MessageBubbleProps>(({ msg, isTyping }) => {
     }
   }, [isTypingStyleBubble, displayedContent, msg.content]);
 
-
-  const isCurrentlyTyping= isTypingStyleBubble && displayedContent.length !== msg.content.length;
+  const isCurrentlyTyping = isTypingStyleBubble && displayedContent.length !== msg.content.length;
   const contentToRender = isCurrentlyTyping ? displayedContent + "▍" : msg.content;
 
   return (
     <div className={`flex my-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
       <div className="flex flex-col max-w-2xl min-w-0">
         <div
-          className={`p-4 rounded-2xl ${
-            msg.role === "user"
-              ? "bg-blue-500 text-white rounded-br-none"
-              : "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none"
-          }`}
+          className={`p-4 rounded-2xl ${msg.role === "user" ? "bg-blue-500 text-white rounded-br-none" : "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none"}`}
         >
           <div className="break-words text-sm">
-            {msg.role === "assistant" ? (
-              <MemoizedMarkdown content={contentToRender} />
-            ) : (
-              <div className="whitespace-pre-wrap">{msg.content}</div>
-            )}
+            {msg.role === "assistant" ? <MemoizedMarkdown content={contentToRender} /> : <div className="whitespace-pre-wrap">{msg.content}</div>}
           </div>
         </div>
-        <span
-          className={`text-xs text-gray-500 dark:text-gray-400 mt-1 px-2 ${
-            msg.role === "user" ? "text-right" : "text-left"
-          }`}
-        >
+        <span className={`text-xs text-gray-500 dark:text-gray-400 mt-1 px-2 ${msg.role === "user" ? "text-right" : "text-left"}`}>
           {formatTimestamp(msg.created_at)}
         </span>
       </div>
@@ -478,10 +428,7 @@ const ChatInput = memo<ChatInputProps>(({ onSendMessage, isStreaming, isLoading 
   };
 
   return (
-    <div
-      data-ag-ui-component="chat-input"
-      className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
-    >
+    <div data-ag-ui-component="chat-input" className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
       <div className="max-w-4xl mx-auto">
         <form onSubmit={handleSubmit} className="flex items-end space-x-4">
           <textarea
@@ -489,7 +436,7 @@ const ChatInput = memo<ChatInputProps>(({ onSendMessage, isStreaming, isLoading 
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={isStreaming ? "AI is thinking . . .": "Type a message..."}
+            placeholder={isStreaming ? "AI is thinking . . ." : "Type a message..."}
             className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 transition-colors resize-none max-h-48 custom-scrollbar placeholder-gray-500 dark:placeholder-gray-400"
             rows={1}
             disabled={isStreaming || isLoading}
@@ -508,7 +455,6 @@ const ChatInput = memo<ChatInputProps>(({ onSendMessage, isStreaming, isLoading 
 });
 ChatInput.displayName = "ChatInput";
 
-
 const ErrorInfo = ({ message }: { message: string }) => (
   <div className="p-3 h-full flex flex-row justify-center items-center text-red-500 dark:text-red-400">
     <ErrorIcon className="w-5 h-5 mr-2 flex-shrink-0" />
@@ -522,105 +468,91 @@ interface ChatAreaProps {
   isStreaming: boolean;
   onSendMessage: (message: string) => void;
 }
-const ChatArea = memo<ChatAreaProps>(
-  ({ messages, isLoading, loadError, isStreaming, onSendMessage }) => {
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const messagesContainerRef = useRef<HTMLDivElement>(null);
-    const chatWindowRef = useRef<HTMLDivElement>(null);
-    const [showScrollButton, setShowScrollButton] = useState(false);
+const ChatArea = memo<ChatAreaProps>(({ messages, isLoading, loadError, isStreaming, onSendMessage }) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
-    const scrollToBottom = useCallback(
-      (behavior: "smooth" | "auto" = "smooth") => {
-        messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
-      }, []
-    );
+  const scrollToBottom = useCallback((behavior: "smooth" | "auto" = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
 
-    const onScroll = () => {
-      const chatWindow = chatWindowRef.current;
-      if (chatWindow) {
-        const { scrollTop, scrollHeight, clientHeight } = chatWindow;
-        setShowScrollButton(scrollHeight - scrollTop > clientHeight + 150);
+  const onScroll = () => {
+    const chatWindow = chatWindowRef.current;
+    if (chatWindow) {
+      const { scrollTop, scrollHeight, clientHeight } = chatWindow;
+      setShowScrollButton(scrollHeight - scrollTop > clientHeight + 150);
+    }
+  };
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom("auto");
+    }
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    const chatWindow = chatWindowRef.current;
+    const messagesContainer = messagesContainerRef.current;
+
+    if (!chatWindow || !messagesContainer) return;
+
+    const observer = new ResizeObserver(() => {
+      const isScrolledToBottom = chatWindow.scrollHeight - chatWindow.scrollTop - chatWindow.clientHeight < 150;
+      if (isScrolledToBottom) {
+        scrollToBottom("auto");
       }
+    });
+
+    observer.observe(messagesContainer);
+
+    return () => {
+      observer.disconnect();
     };
+  }, [scrollToBottom]);
 
-    useEffect(() => {
-        if (messages.length > 0) {
-            scrollToBottom("auto");
-        }
-    }, [messages, scrollToBottom]);
-
-    useEffect(() => {
-      const chatWindow = chatWindowRef.current;
-      const messagesContainer = messagesContainerRef.current;
-
-      if (!chatWindow || !messagesContainer) return;
-
-      const observer = new ResizeObserver(() => {
-        const isScrolledToBottom = chatWindow.scrollHeight - chatWindow.scrollTop - chatWindow.clientHeight < 150;
-        if (isScrolledToBottom) {
-          scrollToBottom('auto');
-        }
-      });
-
-      observer.observe(messagesContainer);
-
-      return () => {
-        observer.disconnect();
-      };
-    }, [scrollToBottom]);
-
-    const renderChatContent = () => {
-      if (isLoading) {
-        return (
-          <div className="h-full flex justify-center items-center">
-            <Spinner />
-          </div>
-        );
-      }
-      if (loadError) {
-        return (
-            <ErrorInfo message={loadError} />
-        );
-      }
-      if (messages.length > 0) {
-        return messages.map((msg, index) => {
-          const isLastMessage = index === messages.length - 1;
-          const isTyping = isStreaming && isLastMessage && msg.role === "assistant";
-          return <MessageBubble key={msg.id} msg={msg} isTyping={isTyping} />;
-        });
-      }
-      return <WelcomeScreen />;
-    };
-
-    return (
-      <main className="flex-1 flex flex-col relative min-h-0">
-        <div
-          className="flex-1 overflow-y-auto p-6 custom-scrollbar"
-          ref={chatWindowRef}
-          onScroll={onScroll}
-        >
-          <div className="max-w-4xl mx-auto" ref={messagesContainerRef}>
-            {renderChatContent()}
-            <div ref={messagesEndRef} />
-          </div>
+  const renderChatContent = () => {
+    if (isLoading) {
+      return (
+        <div className="h-full flex justify-center items-center">
+          <Spinner />
         </div>
-        {showScrollButton && (
-          <button
-            onClick={() => scrollToBottom("smooth")}
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 p-2 bg-white dark:bg-gray-700 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-opacity animate-fade-in"
-          >
-            <ChevronDownIcon />
-          </button>
-        )}
-        <ChatInput
-          onSendMessage={onSendMessage}
-          isStreaming={isStreaming}
-          isLoading={isLoading}
-        />
-      </main>
-    );
-  }
-);
+      );
+    }
+    if (loadError) {
+      return <ErrorInfo message={loadError} />;
+    }
+    if (messages.length > 0) {
+      return messages.map((msg, index) => {
+        const isLastMessage = index === messages.length - 1;
+        const isTyping = isStreaming && isLastMessage && msg.role === "assistant";
+        return <MessageBubble key={msg.id} msg={msg} isTyping={isTyping} />;
+      });
+    }
+    return <WelcomeScreen />;
+  };
+
+  return (
+    <main className="flex-1 flex flex-col relative min-h-0">
+      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar" ref={chatWindowRef} onScroll={onScroll}>
+        <div className={`max-w-4xl mx-auto ${messages.length === 0 ? "h-full" : ""}`} ref={messagesContainerRef}>
+          {renderChatContent()}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+      {showScrollButton && (
+        <button
+          onClick={() => scrollToBottom("smooth")}
+          className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 p-2 bg-white dark:bg-gray-700 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-opacity animate-fade-in"
+        >
+          <ChevronDownIcon />
+        </button>
+      )}
+      <ChatInput onSendMessage={onSendMessage} isStreaming={isStreaming} isLoading={isLoading} />
+    </main>
+  );
+});
 ChatArea.displayName = "ChatArea";
 
 interface ChatHeaderProps {
@@ -648,20 +580,9 @@ export default function ChatPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const {
-    messages,
-    isLoading: isMessagesLoading,
-    isStreaming,
-    error: chatError,
-    sendMessage,
-  } = useChat(selectedConversationId, token);
+  const { messages, isLoading: isMessagesLoading, isStreaming, error: chatError, sendMessage } = useChat(selectedConversationId, token);
 
-  const {
-    conversations,
-    isLoading: isConversationsLoading,
-    error: convError,
-    refreshConversations,
-  } = useConversations(token);
+  const { conversations, isLoading: isConversationsLoading, error: convError, refreshConversations } = useConversations(token);
 
   useEffect(() => {
     if (isMobileDevice()) {
@@ -680,7 +601,7 @@ export default function ChatPage() {
       refreshConversations();
       setSelectedConversationId(newId);
     },
-    [refreshConversations]
+    [refreshConversations],
   );
 
   const handleSelectConversation = useCallback(
@@ -691,14 +612,14 @@ export default function ChatPage() {
         setIsSidebarOpen(false);
       }
     },
-    [selectedConversationId]
+    [selectedConversationId],
   );
 
   const handleSendMessage = useCallback(
     (message: string) => {
       sendMessage(message, handleNewConversation);
     },
-    [sendMessage, handleNewConversation]
+    [sendMessage, handleNewConversation],
   );
 
   if (isAuthLoading) {
@@ -712,9 +633,7 @@ export default function ChatPage() {
     );
   }
 
-  const currentConversationTitle = selectedConversationId
-    ? conversations.find((c) => c.id === selectedConversationId)?.title || "Chat"
-    : "New Chat";
+  const currentConversationTitle = selectedConversationId ? conversations.find((c) => c.id === selectedConversationId)?.title || "Chat" : "New Chat";
 
   return (
     <div

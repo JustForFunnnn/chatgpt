@@ -2,7 +2,7 @@
  * Represents the role of a message sender.
  * Corresponds to `MessageRole` enum in the backend.
  */
-export type MessageRole = 'user' | 'assistant';
+export type MessageRole = "user" | "assistant";
 
 /**
  * Represents a single message in a conversation.
@@ -49,5 +49,5 @@ export interface User {
  */
 export interface TokenResponse {
   access_token: string;
-  token_type: 'bearer';
+  token_type: "bearer";
 }
