@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (token) {
-      router.replace("/fake-chat");
+      router.replace("/chat");
     }
   }, [token]);
 

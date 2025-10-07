@@ -1,36 +1,7 @@
 import { ApiError } from "./errors";
+import { User, Token, Conversation, ConversationDetail } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-
-export type MessageRole = "user" | "assistant";
-
-export interface Message {
-  id: number;
-  role: MessageRole;
-  content: string;
-  created_at: string;
-}
-
-export interface Conversation {
-  id: number;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ConversationDetail extends Conversation {
-  messages: Message[];
-}
-
-export interface User {
-  id: number;
-  username: string;
-}
-
-export interface Token {
-  access_token: string;
-  token_type: string;
-}
 
 const handleResponse = async (response: Response) => {
   const text = await response.text();

@@ -79,7 +79,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const login = (newToken: string) => {
     setAuthInfo(newToken);
-    router.replace("/fake-chat"); // TODO update
+    router.replace("/chat");
   };
 
   const logout = () => {
