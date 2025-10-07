@@ -1,0 +1,4 @@
+ALGORITHM = "HS256"
+OAUTH_LOGIN_API = "/api/v1/login"
+CONVERSATION_ID_HTTP_HEADER = "X-Conversation-Id"
+ACCESS_TOKEN_AUTH_TYPE = "bearer"

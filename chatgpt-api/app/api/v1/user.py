@@ -13,6 +13,7 @@ from app.services.security import (
     verify_password,
 )
 from app.services.user import create_user, get_current_user, get_user_by_name
+from app.core.constants import ACCESS_TOKEN_AUTH_TYPE
 
 router = APIRouter()
 
@@ -42,7 +43,7 @@ async def login(
         raise InvalidCredentialsException()
 
     access_token = create_access_token(user)
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": ACCESS_TOKEN_AUTH_TYPE}
 
 
 @router.post("/logout")

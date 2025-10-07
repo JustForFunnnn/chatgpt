@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, FC, FormEvent, useEffect } from "react";
+import React, { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { LockIcon, UserIcon } from "@/components/ui/icons";
 import { loginUser } from "@/api/client";
+import { ApiError } from "@/api/types";
 
 export default function LoginPage() {
   const [username, setUsername] = useState<string>("");
@@ -20,7 +21,7 @@ export default function LoginPage() {
     if (token) {
       router.replace("/chat");
     }
-  }, [token]);
+  }, [token, router]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,8 +31,9 @@ export default function LoginPage() {
     try {
       const response = await loginUser(username, password);
       login(response.access_token);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err as ApiError;
+      setError(error.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -83,7 +85,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="text-sm text-center text-gray-600">
-          Don't have an account?
+          Not have an account?
           <button onClick={() => router.push("/register")} className="font-medium text-blue-600 hover:underline">
             Sign Up
           </button>

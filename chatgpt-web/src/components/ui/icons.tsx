@@ -171,7 +171,7 @@ export const ErrorIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) 
   <svg
     aria-hidden="true"
     focusable="false"
-    className={className}
+    className={cx("h-6 w-6", className)}
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -179,6 +179,7 @@ export const ErrorIcon: FC<SVGProps<SVGSVGElement>> = ({ className, ...props }) 
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
+    {...props}
   >
     <path d="M12 8V12" />
     <path d="M12 16.0195V16" />

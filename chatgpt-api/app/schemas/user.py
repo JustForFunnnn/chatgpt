@@ -1,12 +1,9 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class JwtTokenPayloadSchema(BaseModel):
     sub: str  # user id
     username: str
-    exp: datetime
 
 
 class TokenSchema(BaseModel):

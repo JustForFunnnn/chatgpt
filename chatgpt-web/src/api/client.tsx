@@ -1,7 +1,6 @@
-import { ApiError } from "./errors";
-import { User, Token, Conversation, ConversationDetail } from "./types";
+import { User, Token, Conversation, ConversationDetail, ApiError } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const handleResponse = async (response: Response) => {
   const text = await response.text();
@@ -50,10 +49,10 @@ export const loginUser = async (username: string, password: string): Promise<Tok
   return handleResponse(response);
 };
 
-export const logoutUser = async (token: string): Promise<any> => {
+export const logoutUser = async (token: string): Promise<void> => {
   console.log("API: POST /api/v1/logout");
   const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/logout`, { method: "POST" }, token);
-  return handleResponse(response);
+  handleResponse(response);
 };
 
 export const getConversations = async (token: string): Promise<Conversation[]> => {

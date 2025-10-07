@@ -1,15 +1,4 @@
-import React, { useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
-
-import { MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon } from "@/components/ui/icons";
-import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
-
-import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import * as api from "@/api/client";
-import { Conversation, Message, User } from "@/api/types";
-import { UserPanel } from "./UserPanel"
-
+import React, { useState, useRef, FormEvent, memo, ChangeEvent } from "react";
 
 export interface ChatInputProps {
   onSendMessage: (message: string) => void;

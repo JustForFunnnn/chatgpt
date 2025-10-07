@@ -1,4 +1,4 @@
-import {Message} from "@/api/types"
+import { Message } from "@/api/types";
 
 interface SSEEvent {
   type: "delta" | "done" | "error";

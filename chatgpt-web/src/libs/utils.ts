@@ -1,5 +1,3 @@
-
-
 export const formatTimestamp = (isoString: string) =>
   new Date(isoString).toLocaleTimeString("en-US", {
     hour: "2-digit",

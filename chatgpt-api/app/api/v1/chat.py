@@ -22,6 +22,7 @@ from app.services.chat import (
     trim_message_history,
 )
 from app.services.user import get_current_user
+from app.core.constants import CONVERSATION_ID_HTTP_HEADER
 
 router = APIRouter()
 
@@ -71,7 +72,7 @@ async def chat(
             return
 
     headers = {
-        "X-Conversation-Id": str(conversation.id),
+        CONVERSATION_ID_HTTP_HEADER: str(conversation.id),
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
     }

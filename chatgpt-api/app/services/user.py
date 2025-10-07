@@ -7,8 +7,9 @@ from app.db import get_session
 from app.exceptions.http_exceptions import UserNotFoundException
 from app.models import User
 from app.services.security import decode_jwt
+from app.core.constants import OAUTH_LOGIN_API
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=OAUTH_LOGIN_API)
 
 
 async def create_user(session: AsyncSession, username: str, hashed_password: str) -> User | None:

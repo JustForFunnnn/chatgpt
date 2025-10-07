@@ -1,19 +1,11 @@
-import React, { useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 
-import { MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon } from "@/components/ui/icons";
-import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
-
-import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import * as api from "@/api/client";
-import { Conversation, Message, User } from "@/api/types";
-import { ErrorInfo } from "./ErrorInfo"
-import { WelcomeScreen } from "./WelcomeScreen"
-import { MessageBubble } from "./MessageBubble"
-import { ChatInput } from "./ChatInput"
-
-
+import { ChevronDownIcon, Spinner } from "@/components/ui/icons";
+import { Message } from "@/api/types";
+import { ErrorInfo } from "./ErrorInfo";
+import { WelcomeScreen } from "./WelcomeScreen";
+import { MessageBubble } from "./MessageBubble";
+import { ChatInput } from "./ChatInput";
 
 export interface ChatAreaProps {
   messages: Message[];

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useState, useContext, ReactNode, useEffect, FC } from "react";
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, FC } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 
@@ -35,10 +35,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  const isExpired = (exp: number): boolean => {
-    return Date.now() >= exp * 1000;
-  };
-
   const clearAuthState = () => {
     setUser(null);
     setToken(null);
@@ -49,7 +45,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   };
 
-  const setAuthInfo = (newToken: string | null) => {
+  const setAuthInfo = useCallback((newToken: string | null) => {
     if (!newToken) {
       clearAuthState();
       return;
@@ -64,7 +60,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       console.error("Failed to decode JWT or token is invalid:", error);
       clearAuthState();
     }
-  };
+  }, []);
 
   useEffect(() => {
     try {
@@ -75,7 +71,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setIsLoading, setAuthInfo]);
 
   const login = (newToken: string) => {
     setAuthInfo(newToken);

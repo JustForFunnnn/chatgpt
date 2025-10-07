@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { LockIcon, UserIcon } from "@/components/ui/icons";
 import { registerUser } from "@/api/client";
+import { ApiError } from "@/api/types";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState<string>("");
@@ -36,8 +37,9 @@ export default function RegisterPage() {
     try {
       await registerUser(username, password);
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err as ApiError;
+      setError(error.message || "Register failed");
     } finally {
       setLoading(false);
     }

@@ -1,21 +1,12 @@
-import React, { useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, memo } from "react";
+import { Message } from "@/api/types";
 
-import { MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon } from "@/components/ui/icons";
-import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
-
-import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import * as api from "@/api/client";
-import { Conversation, Message, User } from "@/api/types";
-
-import {formatTimestamp} from "@/libs/utils"
+import { formatTimestamp } from "@/libs/utils";
 
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import "highlight.js/styles/github-dark.css";
-
 
 export const MemoizedMarkdown = ({ content }: { content: string }) => {
   return (

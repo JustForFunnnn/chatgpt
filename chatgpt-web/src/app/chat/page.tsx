@@ -1,134 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useRef, FormEvent, useCallback, memo, FC, ChangeEvent } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-import { MenuIcon, SunIcon, MoonIcon, ChevronDownIcon, Spinner, LogoutIcon, CloseIcon, NewIcon, ErrorIcon } from "@/components/ui/icons";
-import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
-
+import { Spinner } from "@/components/ui/icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import * as api from "@/api/client";
-import { Conversation, Message, User } from "@/api/types";
-
-import {Sidebar} from "@/components/Sidebar"
-import {ChatHeader} from "@/components/ChatHeader"
-import {ChatArea} from "@/components/ChatArea"
-
-import {streamResponse} from "@/libs/stream"
-import {isMobileDevice} from "@/libs/utils"
-
-
-function useConversations(token: string | null) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchConversations = useCallback(async () => {
-    if (!token) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const convs = await api.getConversations(token);
-      setConversations(convs);
-    } catch (err) {
-      console.error("Failed to load conversations", err);
-      setError("Failed to load message history.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
-
-  return { conversations, isLoading, error, refreshConversations: fetchConversations };
-}
-
-function useChat(conversationId: number | null, token: string | null) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!conversationId || !token) {
-      setMessages([]);
-      return;
-    }
-    const fetchMessages = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await api.getConversationDetail({ id: conversationId, token });
-        setMessages(data.messages);
-      } catch (err) {
-        setError("Failed to load message history.");
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMessages();
-  }, [conversationId, token]);
-
-  const sendMessage = useCallback(
-    async (messageText: string, handleNewConversation: (newId: number) => void) => {
-      if (!token) {
-        setError("Authentication token not found.");
-        return;
-      }
-
-      setIsStreaming(true);
-      setError(null);
-
-      const trimmedInput = messageText.trim();
-      if (!trimmedInput) return;
-
-      const optimisticUserMessage: Message = {
-        id: Date.now(),
-        role: "user",
-        content: trimmedInput,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, optimisticUserMessage]);
-
-      try {
-        const response = await api.postChat({ conversationId, message: trimmedInput, token });
-
-        const newConversationIdHeader = response.headers.get("X-Conversation-Id");
-        const newConversationId = newConversationIdHeader ? parseInt(newConversationIdHeader, 10) : null;
-
-        if (!response.body) throw new Error("No response body");
-
-        const assistantMessageId = Date.now() + 1;
-        const placeholderAssistantMessage: Message = {
-          id: assistantMessageId,
-          role: "assistant",
-          content: "",
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, placeholderAssistantMessage]);
-
-        await streamResponse(response.body, assistantMessageId, setMessages);
-
-        if (newConversationId !== null && newConversationId !== conversationId) {
-          handleNewConversation(newConversationId);
-        }
-      } catch (err) {
-        console.error("Streaming failed:", err);
-        setError("Sorry, the message failed to send.");
-      } finally {
-        setIsStreaming(false);
-      }
-    },
-    [conversationId, token],
-  );
-
-  return { messages, isLoading, isStreaming, error, sendMessage };
-}
-
+import { Sidebar } from "@/components/Sidebar";
+import { ChatHeader } from "@/components/ChatHeader";
+import { ChatArea } from "@/components/ChatArea";
+import { isMobileDevice } from "@/libs/utils";
+import { useChat } from "@/hooks/useChat";
+import { useConversations } from "@/hooks/useConversations";
 
 export default function ChatPage() {
   const { user, token, isLoading: isAuthLoading } = useAuth();
@@ -151,7 +33,7 @@ export default function ChatPage() {
     if (!isAuthLoading && !user) {
       router.replace("/login");
     }
-  }, [user, isAuthLoading]);
+  }, [user, isAuthLoading, router]);
 
   const handleNewConversation = useCallback(
     (newId: number) => {
