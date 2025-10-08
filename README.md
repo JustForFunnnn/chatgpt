@@ -167,8 +167,9 @@ Follow these steps to set up and run the project locally.
     cp .env.example .env
     ```
     Open `.env` and set the following values:
-    * `DATABASE_URL`: Your PostgreSQL connection string (e.g., `postgresql+asyncpg://postgres:password@localhost:5432/chatgpt_db`).
-    * **LLM Provider:** Fill in the details for at least one provider (Gemini, OpenAI, or Azure).
+    * **DATABASE_URL**: Your full PostgreSQL connection string. The `asyncpg` driver is required for asynchronous database operations.
+        * **Example format:** `postgresql+asyncpg://YOUR_USER:YOUR_PASSWORD@localhost:5432/chatgpt_db`
+    * **LLM Provider:** Fill in the details for at least one of supported LLM providers  (Gemini, OpenAI, or Azure).
 
 
 4.  **Install Dependencies:**
