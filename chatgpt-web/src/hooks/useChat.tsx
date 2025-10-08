@@ -16,6 +16,7 @@ export function useChat(conversationId: number | null, token: string | null) {
       setMessages([]);
       return;
     }
+    setIsStreaming(false);
     const fetchMessages = async () => {
       setIsLoading(true);
       setError(null);
