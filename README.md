@@ -153,6 +153,11 @@ Follow these steps to set up and run the project locally.
     
     # Create venv base on python 3.12
     uv venv --python 3.12
+
+    # Activate the environment (Linux/macOS)
+    source .venv/bin/activate
+    # Or on Windows (PowerShell)
+    # .\.venv\Scripts\activate.ps1
     ```
 
 3.  **Configure Environment Variables:**
@@ -175,7 +180,7 @@ Follow these steps to set up and run the project locally.
 5.  **Run Database Migrations:**
     Ensure your PostgreSQL server is running, then **CREATE THE DATABASE**(such as `chatgpt_db`) metioned by your `DATABASE_URL`.
     ```bash
-    alembic upgrade head
+    uv run alembic upgrade head
     ```
 
 6.  **Run Tests:**
