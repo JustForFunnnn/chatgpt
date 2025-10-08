@@ -157,7 +157,7 @@ Follow these steps to set up and run the project locally.
     # Activate the environment (Linux/macOS)
     source .venv/bin/activate
     # Or on Windows (PowerShell)
-    # .\.venv\Scripts\activate.ps1
+    .venv\Scripts\activate
     ```
 
 3.  **Configure Environment Variables:**
@@ -168,7 +168,6 @@ Follow these steps to set up and run the project locally.
     ```
     Open `.env` and set the following values:
     * `DATABASE_URL`: Your PostgreSQL connection string (e.g., `postgresql+asyncpg://postgres:password@localhost:5432/chatgpt_db`).
-    * `JWT_SECRET_KEY`: **Important:** Change the default value to a long, random, secret string for security.
     * **LLM Provider:** Fill in the details for at least one provider (Gemini, OpenAI, or Azure).
 
 
@@ -192,10 +191,6 @@ Follow these steps to set up and run the project locally.
 7.  **Start the API Server:**
 
     ```bash
-    # For development with auto-reload
-    uv run fastapi dev
-
-    # For production
     uv run fastapi run
     ```
     The API will be available at `http://127.0.0.1:8000`.
