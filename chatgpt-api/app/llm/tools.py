@@ -49,7 +49,7 @@ async def scrape_website(url: str) -> str:
     """
     logger.info(f"Tool 'scrape_website' called with url: {url}")
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=5) as client:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=3) as client:
             resp = await client.get(
                 url,
                 headers={"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) " "AppleWebKit/537.36 (KHTML, like Gecko) " "Chrome/117.0.0.0 Safari/537.36")},
@@ -85,7 +85,7 @@ async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
 
     try:
         def _search():
-            with DDGS(timeout=10) as ddgs_obj:
+            with DDGS(timeout=3) as ddgs_obj:
                 return list(ddgs_obj.text(query, max_results=10))
 
         resp = await asyncio.to_thread(_search)
