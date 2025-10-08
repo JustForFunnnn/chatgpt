@@ -1,4 +1,3 @@
-import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,8 +10,6 @@ from app.services.user import get_current_user
 
 router = APIRouter()
 
-
-logger = logging.getLogger("app")
 
 @router.get("/conversations", response_model=list[ConversationSchema])
 async def list_conversations(
@@ -28,11 +25,7 @@ async def get_conversation(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    cs =  await list_user_conversations(session, current_user.id)
-
     conversation = await get_user_conversation_with_messages(session, conversation_id, current_user.id)
     if not conversation:
         raise ConversationNotFoundException()
-    
-    cs =  await list_user_conversations(session, current_user.id)
     return conversation

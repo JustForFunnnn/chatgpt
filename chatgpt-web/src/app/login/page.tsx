@@ -42,10 +42,15 @@ export default function LoginPage() {
   return (
     <main className="flex items-center justify-center min-h-screen bg-gray-100 font-sans p-4">
       <div className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-white rounded-xl shadow-lg">
-        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800">Welcome Back!</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800">
+          Welcome Back!
+        </h1>
         <p className="text-center text-gray-500">Please log in to continue</p>
         {error && (
-          <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+          <div
+            className="p-3 text-sm text-red-700 bg-red-100 rounded-lg"
+            role="alert"
+          >
             {error}
           </div>
         )}
@@ -86,7 +91,10 @@ export default function LoginPage() {
         </form>
         <p className="text-sm text-center text-gray-600">
           Not have an account?
-          <button onClick={() => router.push("/register")} className="font-medium text-blue-600 hover:underline">
+          <button
+            onClick={() => router.push("/register")}
+            className="font-medium text-blue-600 hover:underline"
+          >
             Sign Up
           </button>
         </p>

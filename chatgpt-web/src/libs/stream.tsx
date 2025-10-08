@@ -63,7 +63,13 @@ export async function streamResponse(
           try {
             const text = JSON.parse(event.data);
             if (typeof text === "string") {
-              setMessages((prev) => prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, content: msg.content + text } : msg)));
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: msg.content + text }
+                    : msg,
+                ),
+              );
             }
           } catch (e) {
             console.error("Error parsing SSE JSON data:", event.data, e);

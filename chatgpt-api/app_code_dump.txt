@@ -1,1077 +1,661 @@
-# app/api/v1/chat.py code:
-import logging
+# app/api/test_api_chat.py code:
+import pytest
+from unittest.mock import MagicMock
+from httpx import AsyncClient
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
-from pydantic_ai import Agent
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import Conversation
 
-from app.core.enums import MessageRole, SSEventType
-from app.db import get_session
-from app.exceptions.http_exceptions import ConversationNotFoundException
-from app.llm import get_agent
-from app.models import User
-from app.schemas import ChatRequestSchema, GeneratedTitleOutputSchema
-from app.services.chat import (
-    SSEvent,
-    create_conversation,
-    create_message,
-    get_user_conversation_with_messages,
-    messages_to_model_messages,
-    trim_message_history,
-)
-from app.services.user import get_current_user
 
-router = APIRouter()
+class TestChatEndpoint:
+    @pytest.mark.asyncio
+    async def test_chat_new_conversation(self, async_client: AsyncClient, auth_headers: dict, mock_agent):  # This fixture is already correctly mocked in conftest.py
+        """Test starting a new chat conversation"""
+        mock_title_result = MagicMock()
+        mock_title_result.output.title = "Test Chat"
+        mock_agent.run.return_value = mock_title_result
 
-logger = logging.getLogger("app")
+        response = await async_client.post("/api/v1/chat", headers=auth_headers, json={"user_input": "Hello"})
 
+        assert response.status_code == 200
+        assert "X-Conversation-Id" in response.headers
+        assert int(response.headers["X-Conversation-Id"]) > 0
+        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
-@router.post("/chat")
-async def chat(
-    chat_in: ChatRequestSchema,
-    session: AsyncSession = Depends(get_session),
-    agent: Agent = Depends(get_agent),
-    current_user: User = Depends(get_current_user),
-):
-    conversation_id = chat_in.conversation_id
+        streamed_text = await response.aread()
 
-    message_history = []
-    if conversation_id:
-        conversation = await get_user_conversation_with_messages(session, conversation_id, current_user.id)
-        if not conversation:
-            raise ConversationNotFoundException()
+        expected_output = 'event: delta\ndata: "Mocked "\n\n' 'event: delta\ndata: "stream "\n\n' 'event: delta\ndata: "response."\n\n' "event: done\ndata: null\n\n"
 
-        message_history = messages_to_model_messages(conversation.messages)
-        message_history = trim_message_history(message_history)
-    else:
-        title_generation_prompt = f"Suggest a short, concise title for the following user query: '{chat_in.user_input}'"
-        title_out_obj = await agent.run(title_generation_prompt, output_type=GeneratedTitleOutputSchema)
-        conversation = await create_conversation(session, title_out_obj.output.title, current_user.id)
+        assert streamed_text.decode() == expected_output
 
-    await create_message(session, conversation.id, current_user.id, MessageRole.USER, chat_in.user_input)
+    @pytest.mark.asyncio
+    async def test_chat_existing_conversation(self, async_client: AsyncClient, auth_headers: dict, test_conversation: Conversation, test_messages: list, mock_agent):  # Again, just use the fixture directly
+        """Test continuing an existing conversation"""
 
-    async def stream_chat_response_generator():
-        full_response_content = ""
-        try:
-            async with agent.run_stream(chat_in.user_input, message_history=message_history) as result:
-                async for chunk in result.stream_text(delta=True):
-                    full_response_content += chunk
-                    yield str(SSEvent(SSEventType.DELTA, chunk))
+        response = await async_client.post("/api/v1/chat", headers=auth_headers, json={"user_input": "Continue chat", "conversation_id": test_conversation.id})
 
-            if full_response_content:
-                await create_message(session, conversation.id, current_user.id, MessageRole.ASSISTANT, full_response_content)
-            yield str(SSEvent(SSEventType.DONE))
-        except Exception as e:
-            logger.error(f"stream/save error: {e}", exc_info=True)
-            yield str(SSEvent(SSEventType.ERROR, "An internal server error occurred."))
-            return
+        assert response.status_code == 200
+        assert response.headers["X-Conversation-Id"] == str(test_conversation.id)
 
-    headers = {
-        "X-Conversation-Id": str(conversation.id),
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-    }
-    return StreamingResponse(stream_chat_response_generator(), media_type="text/event-stream", headers=headers)
+    @pytest.mark.asyncio
+    async def test_chat_invalid_conversation_id(self, async_client: AsyncClient, auth_headers: dict):
+        """Test chat with invalid conversation ID"""
+        response = await async_client.post("/api/v1/chat", headers=auth_headers, json={"user_input": "Hello", "conversation_id": 99999})
 
-# app/api/v1/conversation.py code:
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+        assert response.status_code == 404
 
-from app.db import get_session
-from app.exceptions.http_exceptions import ConversationNotFoundException
-from app.models import Conversation, User
-from app.schemas import ConversationDetailSchema, ConversationSchema
-from app.services.chat import get_user_conversation_with_messages, list_user_conversations
-from app.services.user import get_current_user
+    @pytest.mark.asyncio
+    async def test_chat_without_auth(self, async_client: AsyncClient):
+        """Test chat without authentication"""
+        response = await async_client.post("/api/v1/chat", json={"user_input": "Hello"})
 
-router = APIRouter()
+        assert response.status_code == 401
 
+# app/api/test_api_conversation.py code:
+import pytest
+from httpx import AsyncClient
 
-@router.get("/conversations", response_model=list[ConversationSchema])
-async def list_conversations(
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    return await list_user_conversations(session, current_user.id)
-
-
-
-@router.get("/conversations/{conversation_id}", response_model=ConversationDetailSchema)
-async def get_conversation(
-    conversation_id: int,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    conversation = await get_user_conversation_with_messages(session, conversation_id, current_user.id)
-    if not conversation:
-        raise ConversationNotFoundException()
-    return conversation
-
-# app/api/v1/user.py code:
-from fastapi import APIRouter, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db import get_session
-from app.exceptions.http_exceptions import DuplicatedUserNameException, InvalidCredentialsException
-from app.models import User
-from app.schemas import TokenSchema
-from app.schemas.user import UserCreateSchema, UserSchema
-from app.services.security import (
-    create_access_token,
-    get_password_hash,
-    verify_password,
-)
-from app.services.user import create_user, get_current_user, get_user_by_name
-
-router = APIRouter()
-
-
-@router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
-async def register_user(
-    user_in: UserCreateSchema,
-    session: AsyncSession = Depends(get_session),
-):
-    existing_user = await get_user_by_name(session, user_in.username)
-    if existing_user:
-        raise DuplicatedUserNameException()
-
-    hashed_password = get_password_hash(user_in.password)
-    new_user = await create_user(session, user_in.username, hashed_password)
-
-    return new_user
-
-
-@router.post("/login", response_model=TokenSchema)
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    session: AsyncSession = Depends(get_session),
-):
-    user = await get_user_by_name(session, form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise InvalidCredentialsException()
-
-    access_token = create_access_token(user)
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-@router.post("/logout")
-async def logout(current_user: User = Depends(get_current_user)):
-    """Do nothing, the client should be delete the jwt token from storage after call this api"""
-    return {"message": f"User {current_user.id} has been logged out successfully."}
-
-# app/core/config.py code:
-from typing import List
-from pydantic import BaseModel, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class OpenAISettings(BaseModel):
-    OPENAI_MODEL_NAME: str | None = None
-    OPENAI_API_KEY: SecretStr | None = None
-
-class GeminiSettings(BaseModel):
-    GEMINI_MODEL_NAME: str | None = None
-    GEMINI_API_KEY: SecretStr | None = None
-
-class AzureAISettings(BaseModel):
-    AZUREAI_MODEL_NAME: str | None = None
-    AZUREAI_API_KEY: SecretStr | None = None
-    AZUREAI_ENDPOINT: str | None = None
-    AZURE_API_VERSION: str | None = None
-
-class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
-
-    DATABASE_URL: SecretStr
-    JWT_SECRET_KEY: SecretStr
-    BACKEND_CORS_ORIGINS: List[str]
-
-    openai: OpenAISettings = OpenAISettings()
-    gemini: GeminiSettings = GeminiSettings()
-    azureai: AzureAISettings = AzureAISettings()
-
-
-# Environment Variables > .env > default value
-settings = AppSettings()
-
-# app/core/enums.py code:
-from enum import Enum
-
-
-class MessageRole(str, Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-
-
-class SSEventType(Enum):
-    DELTA = "delta"
-    DONE = "done"
-    ERROR = "error"
-
-# app/core/exception_handlers.py code:
-import logging
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-from starlette import status
-
-from app.exceptions.app_error import AppBaseError, DatabaseError
-from app.exceptions.http_exceptions import HttpBaseException
-
-logger = logging.getLogger("app")
-
-
-async def http_base_exception_handler(request: Request, exc: HttpBaseException):
-    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
-    logger.log(log_level, f"Custom HTTP error, error_code: {exc.error_code}, message: {exc.message}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.detail,
-        headers=exc.headers,
-    )
-
-
-async def generic_http_exception_handler(request: Request, exc: HTTPException):
-    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
-    logger.log(log_level, f"Generic HTTP error, status_code: {exc.status_code}, detail: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error_code": "GENERIC_HTTP_ERROR", "message": exc.detail},
-        headers=exc.headers,
-    )
-
-
-async def database_exception_handler(request: Request, exc: DatabaseError):
-    logger.error(f"Database error, error_code: {exc.error_code}, message: {exc.message}")
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={"error_code": exc.error_code.value, "message": "The service is temporarily unavailable due to a database issue."},
-    )
-
-
-async def app_exception_handler(request: Request, exc: AppBaseError):
-    logger.warning(f"App error, error_code: {exc.error_code}, message: {exc.message}")
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={"error_code": exc.error_code.value, "message": exc.message},
-    )
-
-
-async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"message": "An internal server error occurred. Please try again later."},
-    )
-
-
-def register_exception_handlers(app: FastAPI):
-    app.add_exception_handler(HttpBaseException, http_base_exception_handler)
-    app.add_exception_handler(HTTPException, generic_http_exception_handler)
-    app.add_exception_handler(DatabaseError, database_exception_handler)
-    app.add_exception_handler(AppBaseError, app_exception_handler)
-    app.add_exception_handler(Exception, generic_exception_handler)
-
-# app/core/logging_config.py code:
-from pathlib import Path
-
-# Put log files outside the chatgpt-api project to avoid trigger auto reload when run `uv run fastapi dev`
-LOGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "chatgpt-api-logs"
-LOGS_DIR.mkdir(exist_ok=True)
-
-
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "default",
-            "level": "INFO",
-        },
-        "file_info": {
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            "formatter": "default",
-            "filename": LOGS_DIR / "info.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 7,
-            "level": "INFO",
-            "encoding": "utf-8",
-        },
-        "file_warn": {
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            "formatter": "default",
-            "filename": LOGS_DIR / "warn.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 14,
-            "level": "WARNING",
-            "encoding": "utf-8",
-        },
-        "file_error": {
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            "formatter": "default",
-            "filename": LOGS_DIR / "error.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "level": "ERROR",
-            "encoding": "utf-8",
-        },
-    },
-    "loggers": {
-        "app": {
-            "handlers": ["console", "file_info", "file_warn", "file_error"],
-            "level": "INFO",
-            "propagate": False,
-        },
-    },
-    "root": {
-        "handlers": ["console", "file_info", "file_warn", "file_error"],
-        "level": "INFO",
-    },
-}
-
-# app/db/__init__.py code:
-from app.db.session import get_session
-
-__all__ = ["get_session"]
-
-# app/db/session.py code:
-import logging
-from typing import AsyncGenerator
-
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.core.config import settings
-from app.exceptions.app_error import DatabaseError
-
-logger = logging.getLogger("app")
-
-async_engine = create_async_engine(settings.DATABASE_URL.get_secret_value(), echo=False)
-async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)
-
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except SQLAlchemyError as e:
-            await session.rollback()
-            raise DatabaseError(message=f"Database error: {e}")
-        except Exception:
-            await session.rollback()
-            raise
-
-# app/exceptions/app_error.py code:
-from enum import Enum
-
-
-class AppErrorCode(str, Enum):
-    DB_OPERATION_FAILED = "DB_OPERATION_FAILED"
-
-
-class AppBaseError(Exception):
-    def __init__(self, message: str, error_code: AppErrorCode):
-        self.message = message
-        self.error_code = error_code
-        super().__init__(message)
-
-
-class DatabaseError(AppBaseError):
-    def __init__(self, message: str = "Database operation failed."):
-        super().__init__(message=message, error_code=AppErrorCode.DB_OPERATION_FAILED)
-
-# app/exceptions/http_exceptions.py code:
-from enum import Enum
-
-from fastapi import HTTPException, status
-
-
-class HttpErrorCode(str, Enum):
-    TOKEN_EXPIRED = "TOKEN_EXPIRED"
-    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
-    DUPLICATED_USER_NAME = "DUPLICATED_USER_NAME"
-    CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
-    USER_NOT_FOUND = "USER_NOT_FOUND"
-
-
-class HttpBaseException(HTTPException):
-    def __init__(self, status_code: int, error_code: HttpErrorCode, message: str):
-        self.error_code = error_code
-        self.message = message
-        detail = {"error_code": error_code.value, "message": message}
-        super().__init__(status_code=status_code, detail=detail)
-
-
-class TokenExpiredException(HttpBaseException):
-    def __init__(self, message: str = "Token has expired."):
-        super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            error_code=HttpErrorCode.TOKEN_EXPIRED,
-            message=message,
-        )
-
-
-class InvalidCredentialsException(HttpBaseException):
-    def __init__(self, message: str = "Could not validate credentials."):
-        super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            error_code=HttpErrorCode.INVALID_CREDENTIALS,
-            message=message,
-        )
-
-
-class DuplicatedUserNameException(HttpBaseException):
-    def __init__(self, message: str = "Duplicated user name."):
-        super().__init__(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            error_code=HttpErrorCode.DUPLICATED_USER_NAME,
-            message=message,
-        )
-
-
-class UserNotFoundException(HttpBaseException):
-    def __init__(self, message: str = "User not found for the provided token."):
-        super().__init__(
-            status_code=status.HTTP_404_NOT_FOUND,
-            error_code=HttpErrorCode.USER_NOT_FOUND,
-            message=message,
-        )
-
-
-class ConversationNotFoundException(HttpBaseException):
-    def __init__(self, message: str = "Conversation not found for the provided conversation id."):
-        super().__init__(
-            status_code=status.HTTP_404_NOT_FOUND,
-            error_code=HttpErrorCode.CONVERSATION_NOT_FOUND,
-            message=message,
-        )
-
-# app/llm/__init__.py code:
-from app.llm.agent import get_agent
-
-__all__ = [
-    "get_agent",
-]
-
-# app/llm/agent.py code:
-import logging
-from functools import lru_cache
-
-from openai import AsyncAzureOpenAI, AsyncOpenAI
-from pydantic_ai import Agent, Tool
-from pydantic_ai.models.fallback import FallbackModel
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.google import GoogleProvider
-from pydantic_ai.providers.openai import OpenAIProvider
-
-from app.core.config import settings
-from app.llm.tools import duckduckgo_search, scrape_website
-
-logger = logging.getLogger("app")
-
-SYSTEM_PROMPT = """You are a precise and helpful assistant. Your goal is to provide accurate, safe, and well-formatted answers.
-
-General Rules:
-1. Markdown First: Structure responses with headings, lists, tables, and fenced code blocks with language tags.
-2. Fact-Based: Do not invent facts or APIs. If information is missing, state exactly what is needed. Do not reveal chain-of-thought; provide brief reasoning summaries only if asked.
-3. Safety & Privacy: Do not include sensitive data, secrets, or credentials in examples. Use placeholders like `YOUR_API_KEY`. Do not access login-gated or paywalled content.
-4. Structured Output Priority: When a structured `output_model` is requested, return only the fields required by the schema and nothing else. This overrides Markdown formatting.
-
-Tool Use Rules:
-1. `duckduckgo_search`:
-   - Call this tool at most 2 times per user query.
-   - The search result `snippet` only contains the beginning content of the page, you can select high-value results returned by `duckduckgo_search`, and call `scrape_website(url)` to scrape the page content to get details of that result.
-   - You MUST cite sources, after the answer, add a 'Sources' section with Markdown links (e.g., [Source Title](https://example.com)). Prefer primary or official docs when possible.
-   - Use short inline numeric citations like [1], [2] after the claims they support.
-"""
-
-
-def gen_fallback_models() -> FallbackModel:
-    models = []
-
-    if settings.azureai.AZUREAI_MODEL_NAME and settings.azureai.AZUREAI_API_KEY and settings.azureai.AZUREAI_ENDPOINT:
-        client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azureai.AZUREAI_ENDPOINT,
-            api_version=settings.azureai.AZURE_API_VERSION,
-            api_key=settings.azureai.AZUREAI_API_KEY.get_secret_value(),
-        )
-
-        models.append(
-            OpenAIChatModel(
-                settings.azureai.AZUREAI_MODEL_NAME,
-                provider=OpenAIProvider(openai_client=client),
-            )
-        )
-        logger.info(f"Added Azure OPENAI model '{settings.AZUREAI_MODEL_NAME}' to agent...")
-
-    if settings.openai.OPENAI_MODEL_NAME and settings.openai.OPENAI_API_KEY:
-        client = AsyncOpenAI(api_key=settings.openai.OPENAI_API_KEY.get_secret_value())
-        models.append(OpenAIChatModel(settings.openai.OPENAI_MODEL_NAME, provider=OpenAIProvider(openai_client=client)))
-        logger.info(f"Added OpenAI model '{settings.openai.OPENAI_MODEL_NAME}' to agent...")
-
-    if settings.gemini.GEMINI_MODEL_NAME and settings.gemini.GEMINI_API_KEY:
-        models.append(
-            GoogleModel(
-                settings.gemini.GEMINI_MODEL_NAME,
-                provider=GoogleProvider(api_key=settings.gemini.GEMINI_API_KEY.get_secret_value()),
-            )
-        )
-        logger.info(f"Added Gemini model '{settings.gemini.GEMINI_MODEL_NAME}' to agent...")
-
-    if not models:
-        raise ValueError("Can not initial any AI model")
-
-    return FallbackModel(*models)
-
-
-def new_agent() -> Agent:
-    fallback_models = gen_fallback_models()
-    agent = Agent(
-        model=fallback_models,
-        system_prompt=SYSTEM_PROMPT,
-        tools=[
-            Tool(duckduckgo_search, takes_ctx=False),
-            Tool(scrape_website, takes_ctx=False),
-        ],
-    )
-    return agent
-
-
-@lru_cache(maxsize=1)
-def get_agent() -> Agent:
-    return new_agent()
-
-# app/llm/tools.py code:
-import asyncio
-import io
-import logging
-import re
-from typing import List
-
-import httpx
-from ddgs import DDGS
-from markitdown import MarkItDown
-from pydantic import BaseModel, Field
-
-logger = logging.getLogger("app")
-
-_remove_md_link_pattern = re.compile(r"(?<!\!)\[([^\]]*)\]\(((?:\([^()]*\)|[^()])*)\)")
-
-
-class DuckDuckGoResult(BaseModel):
-    """A DuckDuckGo search result."""
-
-    title: str
-    url: str
-    snippet: str
-
-
-def clean_markdown_content(raw: str) -> str:
-    """Clean up the raw markdown content"""
-
-    # Keep link text and drop the URL.
-    # This shortens the result and makes the information more readable.
-    # e.g.:
-    #   accepts [deposits](https://en.wikipedia.org/wiki/Deposit_account) from the public
-    #   -> accepts deposits from the public
-    text = re.sub(_remove_md_link_pattern, r"\1", raw)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-async def scrape_website(url: str) -> str:
-    """
-    Fetch one public page and return cleaned plaintext of the main content.
-
-    Use this after `duckduckgo_search` when you need details from a specific result URL.
-    """
-    logger.info(f"Tool 'scrape_website' called with url: {url}")
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=5) as client:
-            resp = await client.get(
-                url,
-                headers={"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) " "AppleWebKit/537.36 (KHTML, like Gecko) " "Chrome/117.0.0.0 Safari/537.36")},
-            )
-        resp.raise_for_status()
-        resp_content = io.BytesIO(resp.content)
-        # Convert the web content to markdown text, make it more understandable to LLM
-        raw = MarkItDown().convert(resp_content).text_content
-
-        text = clean_markdown_content(raw)
-        return text[:5000]
-    except Exception as e:
-        logger.error(f"Tool 'scrape_website' error: {e}", exc_info=True)  # [MOD]
-        return ""
-
-
-async def duckduckgo_search(query: str) -> List[DuckDuckGoResult]:
-    """
-    Web search for fresh or verifiable facts.
-    Call when time-sensitive, niche, or uncertain.
-
-    Compliance
-    - Call this tool at most 2 times per user query.
-    - If this tool is used, the final answer MUST include inline numeric citations [n] for supported claims
-      and a trailing 'Sources' section with Markdown links to the selected results.
-    - Prefer primary/official sources.
-
-    Examples query that can use this tool:
-    - "OpenAI board changes timeline this week"
-    - "What is the current AI news"
-    - "What is the weather of GuangDong today"
-    """
-    logger.info(f"Tool 'duckduckgo_search' called with query: {query}")
-
-    try:
-
-        def _search():
-            with DDGS() as ddgs_obj:
-                return list(ddgs_obj.text(query, max_results=10))
-
-        resp = await asyncio.to_thread(_search)
-    except Exception as e:
-        logger.error(f"Tool 'duckduckgo_search' error: {e}", exc_info=True)
-        return []
-
-    if not resp:
-        return []
-
-    results: List[DuckDuckGoResult] = []
-    for item in resp or []:
-        results.append(
-            DuckDuckGoResult(
-                title=item.get("title", ""),
-                snippet=item.get("body", ""),
-                url=item.get("href", ""),
-            )
-        )
-    return results
-
-# app/main.py code:
-import logging
-from logging.config import dictConfig
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.core.config import settings
-from app.api.v1 import chat, conversation, user
-from app.core.exception_handlers import register_exception_handlers
-from app.core.logging_config import LOGGING_CONFIG
-
-dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger("app")
-
-
-def config_app(app: FastAPI):
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Include API router
-    app.include_router(chat.router, prefix="/api/v1")
-    app.include_router(conversation.router, prefix="/api/v1")
-    app.include_router(user.router, prefix="/api/v1")
-
-    # Register exception handers and print log
-    register_exception_handlers(app)
-
-
-app = FastAPI(title="chatgpt-api")
-config_app(app)
-
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Chat API"}
-
-# app/models/__init__.py code:
-from app.models.base import Base
-from app.models.conversation import Conversation
-from app.models.message import Message
-from app.models.user import User
-
-__all__ = ["Base", "Conversation", "Message", "User"]
-
-# app/models/base.py code:
-from datetime import datetime
-
-from sqlalchemy import Column, DateTime, Integer
-from sqlalchemy.orm import DeclarativeBase
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class PKMixin:
-    __abstract__ = True
-    id = Column(Integer, primary_key=True)
-
-
-class TimestampsMixin:
-    __abstract__ = True
-    created_at = Column(DateTime, nullable=False, default=datetime.now)
-    updated_at = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)
-
-# app/models/conversation.py code:
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-)
-from sqlalchemy.orm import relationship
-
-from app.models.base import Base, PKMixin, TimestampsMixin
-from app.models.message import Message
-
-
-class Conversation(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "conversation"
-
-    title = Column(String, nullable=False)
-    user_id = Column(Integer, nullable=False, index=True)
-
-    messages = relationship(
-        "Message",
-        primaryjoin="Message.conversation_id == Conversation.id",
-        order_by="Message.created_at.asc()",
-        foreign_keys=lambda: [Message.conversation_id],
-        back_populates="conversation",
-    )
-
-# app/models/message.py code:
-from sqlalchemy import (
-    Column,
-    Integer,
-    Text,
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql.sqltypes import Enum as SQLEnum
-
-from app.core.enums import MessageRole
-from app.models.base import Base, PKMixin, TimestampsMixin
-
-
-class Message(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "message"
-
-    user_id = Column(Integer, nullable=False, index=True)
-    conversation_id = Column(Integer, nullable=False, index=True)
-    role = Column(SQLEnum(MessageRole), nullable=False)
-    content = Column(Text, nullable=False)
-
-    conversation = relationship(
-        "Conversation",
-        primaryjoin="Message.conversation_id == Conversation.id",
-        foreign_keys=[conversation_id],
-        back_populates="messages",
-    )
-
-# app/models/user.py code:
-from sqlalchemy import (
-    Column,
-    String,
-)
-
-from app.models.base import Base, PKMixin, TimestampsMixin
-
-
-class User(PKMixin, TimestampsMixin, Base):
-    __tablename__ = "user"
-
-    username = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-
-# app/schemas/__init__.py code:
-from app.schemas.chat import ChatRequestSchema, ConversationDetailSchema, ConversationSchema, GeneratedTitleOutputSchema, MessageSchema
-from app.schemas.user import JwtTokenPayloadSchema, TokenSchema, UserCreateSchema, UserSchema
-
-__all__ = [
-    "ChatRequestSchema",
-    "ConversationSchema",
-    "ConversationDetailSchema",
-    "GeneratedTitleOutputSchema",
-    "MessageSchema",
-    "TokenSchema",
-    "JwtTokenPayloadSchema",
-    "UserCreateSchema",
-    "UserSchema",
-]
-
-# app/schemas/chat.py code:
-from datetime import datetime
-from typing import List, Optional
-
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.core.enums import MessageRole
-
-
-class MessageSchema(BaseModel):
-    id: int
-    role: MessageRole
-    content: str
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConversationSchema(BaseModel):
-    id: int
-    title: str
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConversationDetailSchema(ConversationSchema):
-    messages: List[MessageSchema]
-
-
-class ChatRequestSchema(BaseModel):
-    user_input: str
-    conversation_id: Optional[int] = None
-
-
-class GeneratedTitleOutputSchema(BaseModel):
-    title: str = Field(..., description="A short, concise title for the conversation")
-
-# app/schemas/user.py code:
-from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class JwtTokenPayloadSchema(BaseModel):
-    sub: str  # user id
-    username: str
-    exp: datetime
-
-
-class TokenSchema(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
-class UserCreateSchema(BaseModel):
-    username: str = Field(..., min_length=3, max_length=20, description="user name")
-    password: str = Field(..., min_length=6, max_length=40, description="password")
-
-
-class UserSchema(BaseModel):
-    id: int
-    username: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-# app/services/chat.py code:
-import json
-import logging
-from typing import Any, List
-
-from fastapi import APIRouter
-from pydantic_ai import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
-from app.core.enums import MessageRole, SSEventType
 from app.models import Conversation, Message
-
-router = APIRouter()
-
-logger = logging.getLogger("app")
+from app.exceptions.http_exceptions import HttpErrorCode
 
 
-class SSEvent:
-    def __init__(self, type: SSEventType, text: str = None):
-        self.type = type
-        payload: dict[str, Any] = {}
-        if text is not None:
-            payload["text"] = text
-        self.payload = payload
+class TestListConversations:
+    """Test list conversations endpoint"""
 
-    def __str__(self) -> str:
-        body = json.dumps(self.payload, ensure_ascii=False)
-        return f"event: {self.type.value}\ndata: {body}\n\n"
+    @pytest.mark.asyncio
+    async def test_list_conversations_success(self, async_client: AsyncClient, auth_headers: dict, test_conversation: Conversation):
+        """Test successful conversation listing"""
+        response = await async_client.get("/api/v1/conversations", headers=auth_headers)
 
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == test_conversation.id
+        assert data[0]["title"] == test_conversation.title
 
-def trim_message_history(msgs: List[ModelMessage], max_chars=12000, pin_heads=2) -> List[ModelMessage]:
-    head = msgs[:pin_heads]
-    tail = msgs[pin_heads:]
-    acc, out = 0, []
-    for m in reversed(tail):
-        size = sum(len(getattr(p, "content", "")) for p in m.parts)
-        if acc + size > max_chars:
-            break
-        out.append(m)
-        acc += size
-    return head + list(reversed(out))
+    @pytest.mark.asyncio
+    async def test_list_conversations_without_auth(self, async_client: AsyncClient):
+        """Test listing conversations without auth"""
+        response = await async_client.get("/api/v1/conversations")
 
+        assert response.status_code == 401
 
-def messages_to_model_messages(rows: List[Message]) -> List[ModelMessage]:
-    model_msgs = []
-    for m in rows:
-        if m.role == MessageRole.USER:
-            model_msgs.append(ModelRequest(parts=[UserPromptPart(content=m.content)]))
-        else:
-            model_msgs.append(ModelResponse(parts=[TextPart(content=m.content)]))
-    return model_msgs
+    @pytest.mark.asyncio
+    async def test_list_conversations_empty(self, async_client: AsyncClient, auth_headers: dict):
+        """Test listing conversations when user has none"""
+        response = await async_client.get("/api/v1/conversations", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
 
 
-async def get_user_conversation_with_messages(session: AsyncSession, conversation_id: int, user_id: int) -> Conversation:
-    query = (
-        select(Conversation)
-        .where(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id,
-        )
-        .options(selectinload(Conversation.messages))
+class TestGetConversation:
+    """Test get conversation detail endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_success(self, async_client: AsyncClient, auth_headers: dict, test_conversation: Conversation, test_messages: list[Message]):
+        """Test successful conversation retrieval"""
+        response = await async_client.get(f"/api/v1/conversations/{test_conversation.id}", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == test_conversation.id
+        assert data["title"] == test_conversation.title
+        assert "messages" in data
+        assert len(data["messages"]) == len(test_messages)
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_not_found(self, async_client: AsyncClient, auth_headers: dict):
+        """Test getting nonexistent conversation"""
+        response = await async_client.get("/api/v1/conversations/99999", headers=auth_headers)
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["error_code"] == HttpErrorCode.CONVERSATION_NOT_FOUND.value
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_without_auth(self, async_client: AsyncClient, test_conversation: Conversation):
+        """Test getting conversation without auth"""
+        response = await async_client.get(f"/api/v1/conversations/{test_conversation.id}")
+
+        assert response.status_code == 401
+
+# app/api/test_api_user.py code:
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import User
+
+
+class TestUserRegistration:
+    """Test user registration endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_register_success(self, async_client: AsyncClient, test_session: AsyncSession):
+        """Test successful user registration"""
+        response = await async_client.post("/api/v1/register", json={"username": "newuser", "password": "password123"})
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["username"] == "newuser"
+        assert "id" in data
+        assert "hashed_password" not in data
+
+    @pytest.mark.asyncio
+    async def test_register_duplicate_username(self, async_client: AsyncClient, test_user: User):
+        """Test registration with duplicate username"""
+        response = await async_client.post("/api/v1/register", json={"username": test_user.username, "password": "password123"})
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["error_code"] == "DUPLICATED_USER_NAME"
+
+    @pytest.mark.asyncio
+    async def test_register_invalid_username_too_short(self, async_client: AsyncClient):
+        """Test registration with too short username"""
+        response = await async_client.post("/api/v1/register", json={"username": "ab", "password": "password123"})
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_register_invalid_password_too_short(self, async_client: AsyncClient):
+        """Test registration with too short password"""
+        response = await async_client.post("/api/v1/register", json={"username": "newuser", "password": "12345"})
+
+        assert response.status_code == 422
+
+
+class TestUserLogin:
+    """Test user login endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_login_success(self, async_client: AsyncClient, test_user: User):
+        """Test successful login"""
+        response = await async_client.post("/api/v1/login", data={"username": "testuser", "password": "testpass123"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+
+    @pytest.mark.asyncio
+    async def test_login_wrong_password(self, async_client: AsyncClient, test_user: User):
+        """Test login with wrong password"""
+        response = await async_client.post("/api/v1/login", data={"username": "testuser", "password": "wrongpassword"})
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data["error_code"] == "INVALID_CREDENTIALS"
+
+    @pytest.mark.asyncio
+    async def test_login_nonexistent_user(self, async_client: AsyncClient):
+        """Test login with nonexistent user"""
+        response = await async_client.post("/api/v1/login", data={"username": "nonexistent", "password": "password123"})
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data["error_code"] == "INVALID_CREDENTIALS"
+
+
+class TestUserLogout:
+    """Test user logout endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_logout_success(self, async_client: AsyncClient, auth_headers: dict):
+        """Test successful logout"""
+        response = await async_client.post("/api/v1/logout", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+    @pytest.mark.asyncio
+    async def test_logout_without_auth(self, async_client: AsyncClient):
+        """Test logout without authentication"""
+        response = await async_client.post("/api/v1/logout")
+
+        assert response.status_code == 401
+
+# app/conftest.py code:
+import pytest
+import asyncio
+from typing import AsyncGenerator, Generator
+from unittest.mock import AsyncMock, MagicMock
+
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
+from pydantic_ai import Agent
+
+from app.main import app as fastapi_app
+from app.models import Base, User, Conversation, Message
+from app.db import get_session
+from app.llm import get_agent
+from app.services.security import create_access_token, get_password_hash
+from app.core.enums import MessageRole
+
+
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    """Creates a shared event loop for the entire test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+async def test_engine():
+    """
+    shared across the test session. Table schema is created only once.
+    """
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
-    result = await session.execute(query)
-    return result.scalar_one_or_none()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    await engine.dispose()
 
 
-async def list_user_conversations(session: AsyncSession, user_id: int) -> List[Conversation]:
-    query = (
-        select(Conversation)
-        .where(Conversation.user_id == user_id)
-        .order_by(Conversation.updated_at.desc())
-    )
-    result = await session.execute(query)
-    return result.scalars().all()
+@pytest.fixture(scope="function")
+async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provides an isolated database session and transaction for each test function.
+    Data is cleared after each test.
+    """
+    async_session_factory = async_sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
 
-async def create_conversation(session: AsyncSession, title: str, user_id: int) -> Conversation:
-    conversation = Conversation(
-        title=title,
-        user_id=user_id,
-    )
-    session.add(conversation)
-    await session.flush()
+    async with async_session_factory() as session:
+        yield session
+        # Clear all table data to ensure test isolation
+        for table in reversed(Base.metadata.sorted_tables):
+            await session.execute(table.delete())
+        await session.commit()
+
+
+@pytest.fixture(scope="function")
+def override_get_session(test_session: AsyncSession):
+    """Overrides the `get_session` dependency in the FastAPI app to use our `test_session`."""
+
+    async def _override_get_session():
+        yield test_session
+
+    fastapi_app.dependency_overrides[get_session] = _override_get_session
+    yield
+    fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def mock_agent():
+    """Mocks the LLM Agent to return a predictable, streaming response."""
+    agent_mock = MagicMock(spec=Agent)
+
+    mock_result = MagicMock()
+
+    async def stream_text_gen(*args, **kwargs):
+        yield "Mocked "
+        yield "stream "
+        yield "response."
+
+    mock_result.stream_text.return_value = stream_text_gen()
+
+    async def async_context_manager(*args, **kwargs):
+        return mock_result
+
+    agent_mock.run_stream.return_value = AsyncMock(__aenter__=async_context_manager)
+    agent_mock.run = AsyncMock()
+
+    fastapi_app.dependency_overrides[get_agent] = lambda: agent_mock
+    yield agent_mock
+    fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+async def async_client(override_get_session) -> AsyncGenerator[AsyncClient, None]:
+    """Creates an async client that can be used to make API calls."""
+    transport = ASGITransport(app=fastapi_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+# Table Records Fixture
+
+
+@pytest.fixture(scope="function")
+async def test_user(test_session: AsyncSession) -> User:
+    user = User(username="testuser", hashed_password=get_password_hash("testpass123"))
+    test_session.add(user)
+    await test_session.commit()
+    await test_session.refresh(user)
+    return user
+
+
+@pytest.fixture(scope="function")
+def auth_token(test_user: User) -> str:
+    return create_access_token(test_user)
+
+
+@pytest.fixture(scope="function")
+def auth_headers(auth_token: str) -> dict:
+    return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest.fixture(scope="function")
+async def test_conversation(test_session: AsyncSession, test_user: User) -> Conversation:
+    conversation = Conversation(title="Test Conversation", user_id=test_user.id)
+    test_session.add(conversation)
+    await test_session.commit()
+    await test_session.refresh(conversation)
     return conversation
 
 
-async def create_message(session: AsyncSession, conversation_id: int, user_id: int, role: MessageRole, content: str) -> Message:
-    message = Message(
-        user_id=user_id,
-        conversation_id=conversation_id,
-        role=role,
-        content=content,
-    )
-    session.add(message)
-    await session.flush()
-    return message
+@pytest.fixture(scope="function")
+async def test_messages(test_session: AsyncSession, test_user: User, test_conversation: Conversation) -> list[Message]:
+    messages = [Message(user_id=test_user.id, conversation_id=test_conversation.id, role=MessageRole.USER, content="Hello"), Message(user_id=test_user.id, conversation_id=test_conversation.id, role=MessageRole.ASSISTANT, content="Hi there!")]
+    test_session.add_all(messages)
+    await test_session.commit()
+    for msg in messages:
+        await test_session.refresh(msg)
+    return messages
 
-# app/services/security.py code:
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+# app/llm/test_llm_agent.py code:
+from unittest.mock import patch, MagicMock
 
+from app.llm.agent import gen_fallback_models
+from pydantic_ai.models.openai import OpenAIChatModel
+
+
+class TestLLMAgent:
+    """Test LLM agent initialization"""
+
+    @patch("app.llm.agent.settings")
+    def test_gen_fallback_models_openai(self, mock_settings):
+        """Test fallback models with OpenAI config"""
+        mock_settings.OPENAI_MODEL_NAME = "gpt-4"
+        mock_settings.OPENAI_API_KEY = MagicMock()
+        mock_settings.OPENAI_API_KEY.get_secret_value.return_value = "test-key"
+        mock_settings.GEMINI_MODEL_NAME = None
+        mock_settings.AZUREAI_MODEL_NAME = None
+
+        fallback_models = gen_fallback_models()
+
+        assert len(fallback_models.models) == 1
+        assert type(fallback_models.models[0]) is OpenAIChatModel
+
+# app/llm/test_llm_tools.py code:
+import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
+from pydantic_ai import Agent
+
+from app.llm.tools import duckduckgo_search, scrape_website, suggest_title, clean_markdown_content, DuckDuckGoResult
+
+
+class TestLLMTools:
+    """Test LLM tool functions"""
+
+    @pytest.mark.asyncio
+    async def test_suggest_title(self):
+        """Test title suggestion"""
+        mock_agent = AsyncMock(spec=Agent)
+        mock_result = MagicMock()
+        mock_result.output.title = "Suggested Title"
+        mock_agent.run.return_value = mock_result
+
+        title = await suggest_title(mock_agent, "What is AI?")
+
+        assert title == "Suggested Title"
+        mock_agent.run.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("app.llm.tools.DDGS")
+    async def test_duckduckgo_search_success(self, mock_ddgs):
+        """Test successful DuckDuckGo search"""
+        mock_instance = MagicMock()
+        mock_instance.text.return_value = [{"title": "Test Result", "body": "Test snippet", "href": "https://example.com"}]
+        mock_ddgs.return_value.__enter__.return_value = mock_instance
+
+        results = await duckduckgo_search("test query")
+
+        assert len(results) == 1
+        assert isinstance(results[0], DuckDuckGoResult)
+        assert results[0].title == "Test Result"
+        assert results[0].snippet == "Test snippet"
+        assert results[0].url == "https://example.com"
+
+    @pytest.mark.asyncio
+    @patch("app.llm.tools.DDGS")
+    async def test_duckduckgo_search_error(self, mock_ddgs):
+        """Test DuckDuckGo search with error"""
+        mock_ddgs.return_value.__enter__.side_effect = Exception("Search failed")
+
+        results = await duckduckgo_search("test query")
+
+        assert results == []
+
+    @pytest.mark.asyncio
+    @patch("app.llm.tools.httpx.AsyncClient")
+    @patch("app.llm.tools.MarkItDown")
+    async def test_scrape_website_success(self, mock_markitdown, mock_client):
+        """Test successful website scraping"""
+        mock_response = MagicMock()
+        mock_response.content = b"Test content"
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get.return_value = mock_response
+        mock_client.return_value.__aenter__.return_value = mock_client_instance
+
+        mock_md_instance = MagicMock()
+        mock_md_result = MagicMock()
+        mock_md_result.text_content = "Converted markdown content"
+        mock_md_instance.convert.return_value = mock_md_result
+        mock_markitdown.return_value = mock_md_instance
+
+        result = await scrape_website("https://example.com")
+
+        assert isinstance(result, str)
+        assert "Converted markdown content" in result
+
+    @pytest.mark.asyncio
+    @patch("app.llm.tools.httpx.AsyncClient")
+    async def test_scrape_website_error(self, mock_client):
+        """Test website scraping with error"""
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get.side_effect = Exception("Request failed")
+        mock_client.return_value.__aenter__.return_value = mock_client_instance
+
+        result = await scrape_website("https://example.com")
+
+        assert result == ""
+
+    def test_clean_markdown_content(self):
+        """Test markdown content cleaning"""
+        raw = "Text with [link](https://example.com) and  multiple   spaces"
+        cleaned = clean_markdown_content(raw)
+
+        assert "[link]" not in cleaned
+        assert "link" in cleaned
+        assert "  " not in cleaned
+
+# app/services/test_service_security.py code:
+import pytest
 import jwt
-from jwt import ExpiredSignatureError, PyJWTError
-from passlib.context import CryptContext
-from pydantic import ValidationError
 
-from app.core.config import settings
-from app.exceptions.http_exceptions import InvalidCredentialsException, TokenExpiredException
+from app.services.security import create_access_token, decode_jwt, verify_password, get_password_hash
 from app.models import User
-from app.schemas import JwtTokenPayloadSchema
-
-SECRET_KEY = settings.JWT_SECRET_KEY.get_secret_value()
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 7
-
-pwd_context = CryptContext(schemes=["scrypt"], deprecated="auto")
+from app.exceptions.http_exceptions import InvalidCredentialsException
+from app.core.config import settings
+from app.core.constants import ALGORITHM
 
 
-def create_access_token(user: User, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Generates a new JWT access token.
-    """
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+class TestSecurityService:
+    """Test security service functions"""
 
-    payload_to_encode = JwtTokenPayloadSchema(sub=str(user.id), username=user.username, exp=expire)
+    def test_password_hashing(self):
+        """Test password hashing and verification"""
+        password = "testpassword123"
+        hashed = get_password_hash(password)
 
-    encoded_jwt = jwt.encode(payload_to_encode.model_dump(), SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+        assert hashed != password
+        assert verify_password(password, hashed)
+        assert not verify_password("wrongpassword", hashed)
+
+    def test_create_access_token(self, test_user: User):
+        """Test JWT token creation"""
+        token = create_access_token(test_user)
+
+        assert isinstance(token, str)
+        assert len(token) > 0
+
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM])
+        assert payload["sub"] == str(test_user.id)
+        assert payload["username"] == test_user.username
+
+    def test_decode_jwt_valid(self, test_user: User):
+        """Test decoding valid JWT"""
+        token = create_access_token(test_user)
+        payload = decode_jwt(token)
+
+        assert payload.sub == str(test_user.id)
+        assert payload.username == test_user.username
+
+    def test_decode_jwt_invalid(self):
+        """Test decoding invalid JWT"""
+        with pytest.raises(InvalidCredentialsException):
+            decode_jwt("invalid.token.here")
+
+# app/services/test_services_chat.py code:
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
+
+from app.models import User, Conversation, Message
+from app.services.chat import create_conversation, create_message, get_user_conversation_with_messages, list_user_conversations, messages_to_model_messages, trim_message_history, SSEvent
+from app.core.enums import MessageRole, SSEventType
 
 
-def decode_jwt(token: str) -> JwtTokenPayloadSchema:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return JwtTokenPayloadSchema(**payload)
-    except ExpiredSignatureError:
-        raise TokenExpiredException()
-    except (PyJWTError, ValidationError):
-        raise InvalidCredentialsException()
+class TestChatService:
+    """Test chat service functions"""
 
+    @pytest.mark.asyncio
+    async def test_create_conversation(self, test_session: AsyncSession, test_user: User):
+        """Test creating a conversation"""
+        conv = await create_conversation(test_session, "Test Title", test_user.id)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+        assert conv is not None
+        assert conv.title == "Test Title"
+        assert conv.user_id == test_user.id
+        assert conv.id is not None
 
+    @pytest.mark.asyncio
+    async def test_create_message(self, test_session: AsyncSession, test_user: User, test_conversation: Conversation):
+        """Test creating a message"""
+        msg = await create_message(test_session, test_conversation.id, test_user.id, MessageRole.USER, "Test message")
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+        assert msg is not None
+        assert msg.conversation_id == test_conversation.id
+        assert msg.user_id == test_user.id
+        assert msg.role == MessageRole.USER
+        assert msg.content == "Test message"
 
-# app/services/user.py code:
-from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy import select
+    @pytest.mark.asyncio
+    async def test_get_user_conversation_with_messages(self, test_session: AsyncSession, test_user: User, test_conversation: Conversation, test_messages: list[Message]):
+        """Test getting conversation with messages"""
+        conv = await get_user_conversation_with_messages(test_session, test_conversation.id, test_user.id)
+
+        assert conv is not None
+        assert conv.id == test_conversation.id
+        assert len(conv.messages) == len(test_messages)
+
+    @pytest.mark.asyncio
+    async def test_list_user_conversations(self, test_session: AsyncSession, test_user: User, test_conversation: Conversation):
+        """Test listing user conversations"""
+        convs = await list_user_conversations(test_session, test_user.id)
+
+        assert len(convs) == 1
+        assert any(c.id == test_conversation.id for c in convs)
+
+    def test_messages_to_model_messages(self, test_messages: list[Message]):
+        """Test converting messages to model messages"""
+        model_msgs = messages_to_model_messages(test_messages)
+
+        assert len(model_msgs) == len(test_messages)
+        assert isinstance(model_msgs[0], ModelRequest)
+        assert isinstance(model_msgs[1], ModelResponse)
+
+    def test_trim_message_history_no_trim_needed(self):
+        """Test trim when under limit"""
+        msgs = [ModelRequest(parts=[UserPromptPart(content="Short")]), ModelResponse(parts=[TextPart(content="Reply")])]
+
+        trimmed = trim_message_history(msgs, max_chars=1000, pin_heads=1)
+
+        assert len(trimmed) == len(msgs)
+
+    def test_trim_message_history_with_trim(self):
+        """Test trim when over limit"""
+        msgs = [
+            ModelRequest(parts=[UserPromptPart(content="A" * 100)]),
+            ModelRequest(parts=[UserPromptPart(content="B" * 100)]),
+            ModelRequest(parts=[UserPromptPart(content="C" * 100)]),
+        ]
+
+        trimmed = trim_message_history(msgs, max_chars=150, pin_heads=1)
+
+        assert len(trimmed) < len(msgs)
+        assert trimmed[0] == msgs[0]
+
+    def test_ss_event_serialization(self):
+        """Test SSEvent serialization"""
+        event = SSEvent(SSEventType.DELTA, "test data")
+        serialized = str(event)
+
+        assert "event: delta" in serialized
+        assert "data: " in serialized
+        assert "test data" in serialized
+
+# app/services/test_services_user.py code:
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
-from app.exceptions.http_exceptions import UserNotFoundException
 from app.models import User
-from app.services.security import decode_jwt
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
-
-
-async def create_user(session: AsyncSession, username: str, hashed_password: str) -> User | None:
-    new_user = User(username=username, hashed_password=hashed_password)
-    session.add(new_user)
-    await session.flush()
-    return new_user
+from app.services.user import create_user, get_user_by_name
+from app.services.security import get_password_hash
 
 
-async def get_user_by_name(session: AsyncSession, username: str) -> User | None:
-    query = select(User).where(User.username == username)
-    result = await session.execute(query)
-    return result.scalar_one_or_none()
+class TestUserService:
+    """Test user service functions"""
 
+    @pytest.mark.asyncio
+    async def test_create_user(self, test_session: AsyncSession):
+        """Test creating a new user"""
+        hashed_pw = get_password_hash("testpass")
+        user = await create_user(test_session, "newuser", hashed_pw)
 
-async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)) -> User:
-    payload = decode_jwt(token)
+        assert user is not None
+        assert user.username == "newuser"
+        assert user.hashed_password == hashed_pw
+        assert user.id is not None
 
-    query = select(User).where(User.id == int(payload.sub))
-    result = await session.execute(query)
-    user = result.scalar_one_or_none()
+    @pytest.mark.asyncio
+    async def test_get_user_by_name_exists(self, test_session: AsyncSession, test_user: User):
+        """Test getting existing user by name"""
+        user = await get_user_by_name(test_session, test_user.username)
 
-    if user is None:
-        raise UserNotFoundException()
+        assert user is not None
+        assert user.id == test_user.id
+        assert user.username == test_user.username
 
-    return user
+    @pytest.mark.asyncio
+    async def test_get_user_by_name_not_exists(self, test_session: AsyncSession):
+        """Test getting nonexistent user by name"""
+        user = await get_user_by_name(test_session, "nonexistent")
+
+        assert user is None
 

@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic_ai import Agent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import CONVERSATION_ID_HTTP_HEADER
 from app.core.enums import MessageRole, SSEventType
 from app.db import get_session
 from app.exceptions.http_exceptions import ConversationNotFoundException
@@ -22,7 +23,6 @@ from app.services.chat import (
     trim_message_history,
 )
 from app.services.user import get_current_user
-from app.core.constants import CONVERSATION_ID_HTTP_HEADER
 
 router = APIRouter()
 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-import { Spinner } from "@/components/ui/icons";
+import { LoadingIcon } from "@/components/ui/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -16,12 +16,25 @@ export default function ChatPage() {
   const { user, token, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
 
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const { messages, isLoading: isMessagesLoading, isStreaming, error: chatError, sendMessage } = useChat(selectedConversationId, token);
+  const {
+    messages,
+    isLoading: isMessagesLoading,
+    isStreaming,
+    error: chatError,
+    sendMessage,
+  } = useChat(selectedConversationId, token);
 
-  const { conversations, isLoading: isConversationsLoading, error: convError, refreshConversations } = useConversations(token);
+  const {
+    conversations,
+    isLoading: isConversationsLoading,
+    error: convError,
+    refreshConversations,
+  } = useConversations(token);
 
   useEffect(() => {
     if (isMobileDevice()) {
@@ -65,14 +78,17 @@ export default function ChatPage() {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
-          <Spinner />
+          <LoadingIcon />
           <p className="dark:text-white">Loading...</p>
         </div>
       </div>
     );
   }
 
-  const currentConversationTitle = selectedConversationId ? conversations.find((c) => c.id === selectedConversationId)?.title || "Chat" : "New Chat";
+  const currentConversationTitle = selectedConversationId
+    ? conversations.find((c) => c.id === selectedConversationId)?.title ||
+      "Chat"
+    : "New Chat";
 
   return (
     <div
@@ -88,7 +104,10 @@ export default function ChatPage() {
         loadError={convError}
       />
       <div className="flex flex-col flex-1 min-w-0">
-        <ChatHeader title={currentConversationTitle} onOpenSidebar={() => setIsSidebarOpen(true)} />
+        <ChatHeader
+          title={currentConversationTitle}
+          onOpenSidebar={() => setIsSidebarOpen(true)}
+        />
         <ChatArea
           messages={messages}
           isLoading={isMessagesLoading}

@@ -4,4 +4,5 @@ export const formatTimestamp = (isoString: string) =>
     minute: "2-digit",
   });
 
-export const isMobileDevice = () => typeof window !== "undefined" && window.innerWidth < 765;
+export const isMobileDevice = () =>
+  typeof window !== "undefined" && window.innerWidth < 765;

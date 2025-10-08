@@ -17,12 +17,18 @@ export const UserPanel = memo(() => {
         <span className="font-semibold flex-1 truncate">{user.username}</span>
         <button
           onClick={toggleTheme}
-          title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+          title={
+            theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"
+          }
           className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
         >
           {theme === "light" ? <MoonIcon /> : <SunIcon />}
         </button>
-        <button onClick={logout} title="Logout" className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700">
+        <button
+          onClick={logout}
+          title="Logout"
+          className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
+        >
           <LogoutIcon />
         </button>
       </div>

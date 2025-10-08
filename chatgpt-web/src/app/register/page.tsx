@@ -53,23 +53,37 @@ export default function RegisterPage() {
             <div className="text-center space-y-3" aria-live="assertive">
               <div className="mx-auto h-10 w-10 rounded-full bg-green-100 grid place-items-center">
                 <svg viewBox="0 0 24 24" className="h-6 w-6 text-green-600">
-                  <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+                  <path
+                    fill="currentColor"
+                    d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"
+                  />
                 </svg>
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Registered successfully</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Registered successfully
+              </h2>
               <p className="text-sm text-gray-600">Redirecting to login…</p>
             </div>
           </div>
         )}
 
-        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800">Create an Account</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800">
+          Create an Account
+        </h1>
         <p className="text-center text-gray-500">Start your journey now!</p>
         {error && (
-          <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+          <div
+            className="p-3 text-sm text-red-700 bg-red-100 rounded-lg"
+            role="alert"
+          >
             {error}
           </div>
         )}
-        {success && <div className="p-3 text-sm text-green-700 bg-green-100 rounded">Register success. Redirecting to login page...</div>}
+        {success && (
+          <div className="p-3 text-sm text-green-700 bg-green-100 rounded">
+            Register success. Redirecting to login page...
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -126,7 +140,10 @@ export default function RegisterPage() {
         </form>
         <p className="text-sm text-center text-gray-600">
           Already have an account?{" "}
-          <button onClick={() => router.push("/login")} className="font-medium text-blue-600 hover:underline">
+          <button
+            onClick={() => router.push("/login")}
+            className="font-medium text-blue-600 hover:underline"
+          >
             Login
           </button>
         </p>

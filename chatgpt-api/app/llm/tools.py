@@ -62,7 +62,7 @@ async def scrape_website(url: str) -> str:
         text = clean_markdown_content(raw)
         return text[:5000]
     except Exception as e:
-        logger.error(f"Tool 'scrape_website' error: {e}", exc_info=True)  # [MOD]
+        logger.error(f"Tool 'scrape_website' error: {e}", exc_info=True)
         return ""
 
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import ACCESS_TOKEN_AUTH_TYPE
 from app.db import get_session
 from app.exceptions.http_exceptions import DuplicatedUserNameException, InvalidCredentialsException
 from app.models import User
@@ -13,7 +14,6 @@ from app.services.security import (
     verify_password,
 )
 from app.services.user import create_user, get_current_user, get_user_by_name
-from app.core.constants import ACCESS_TOKEN_AUTH_TYPE
 
 router = APIRouter()
 

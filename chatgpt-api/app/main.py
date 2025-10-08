@@ -6,9 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import chat, conversation, user
 from app.core.config import settings
+from app.core.constants import CONVERSATION_ID_HTTP_HEADER
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging_config import LOGGING_CONFIG
-from app.core.constants import CONVERSATION_ID_HTTP_HEADER
 
 dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("app")

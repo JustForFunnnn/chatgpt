@@ -3,11 +3,11 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import OAUTH_LOGIN_API
 from app.db import get_session
 from app.exceptions.http_exceptions import UserNotFoundException
 from app.models import User
 from app.services.security import decode_jwt
-from app.core.constants import OAUTH_LOGIN_API
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=OAUTH_LOGIN_API)
 

@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useState, useEffect, useContext, ReactNode } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useContext,
+  ReactNode,
+} from "react";
 
 type Theme = "light" | "dark";
 
@@ -18,7 +24,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const storedTheme = localStorage.getItem(CHATGPT_WEB_THEME_STORAGE_KEY) as Theme;
+      const storedTheme = localStorage.getItem(
+        CHATGPT_WEB_THEME_STORAGE_KEY,
+      ) as Theme;
       if (storedTheme) {
         setTheme(storedTheme);
         document.documentElement.classList.add(storedTheme);
@@ -43,7 +51,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = { theme, toggleTheme };
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

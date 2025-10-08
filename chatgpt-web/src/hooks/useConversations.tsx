@@ -28,5 +28,10 @@ export function useConversations(token: string | null) {
     fetchConversations();
   }, [fetchConversations]);
 
-  return { conversations, isLoading, error, refreshConversations: fetchConversations };
+  return {
+    conversations,
+    isLoading,
+    error,
+    refreshConversations: fetchConversations,
+  };
 }

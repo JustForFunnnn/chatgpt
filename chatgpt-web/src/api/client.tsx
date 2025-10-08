@@ -1,4 +1,10 @@
-import { User, Token, Conversation, ConversationDetail, ApiError } from "./types";
+import {
+  User,
+  Token,
+  Conversation,
+  ConversationDetail,
+  ApiError,
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -16,7 +22,11 @@ const handleResponse = async (response: Response) => {
   return data;
 };
 
-const fetchWithAuth = (url: string, options: RequestInit, token: string): Promise<Response> => {
+const fetchWithAuth = (
+  url: string,
+  options: RequestInit,
+  token: string,
+): Promise<Response> => {
   const headers: HeadersInit = {
     ...options.headers,
     Authorization: `Bearer ${token}`,
@@ -25,7 +35,10 @@ const fetchWithAuth = (url: string, options: RequestInit, token: string): Promis
   return fetch(url, { ...options, headers });
 };
 
-export const registerUser = async (username: string, password: string): Promise<User> => {
+export const registerUser = async (
+  username: string,
+  password: string,
+): Promise<User> => {
   console.log("API: POST /api/v1/register");
   const response = await fetch(`${API_BASE_URL}/api/v1/register`, {
     method: "POST",
@@ -35,7 +48,10 @@ export const registerUser = async (username: string, password: string): Promise<
   return handleResponse(response);
 };
 
-export const loginUser = async (username: string, password: string): Promise<Token> => {
+export const loginUser = async (
+  username: string,
+  password: string,
+): Promise<Token> => {
   console.log("API: GET /api/v1/login");
   const formData = new URLSearchParams();
   formData.append("username", username);
@@ -51,19 +67,39 @@ export const loginUser = async (username: string, password: string): Promise<Tok
 
 export const logoutUser = async (token: string): Promise<void> => {
   console.log("API: POST /api/v1/logout");
-  const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/logout`, { method: "POST" }, token);
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/logout`,
+    { method: "POST" },
+    token,
+  );
   handleResponse(response);
 };
 
-export const getConversations = async (token: string): Promise<Conversation[]> => {
+export const getConversations = async (
+  token: string,
+): Promise<Conversation[]> => {
   console.log("API: GET /api/v1/conversations");
-  const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/conversations`, { method: "GET" }, token);
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/conversations`,
+    { method: "GET" },
+    token,
+  );
   return handleResponse(response);
 };
 
-export const getConversationDetail = async ({ id, token }: { id: number; token: string }): Promise<ConversationDetail> => {
+export const getConversationDetail = async ({
+  id,
+  token,
+}: {
+  id: number;
+  token: string;
+}): Promise<ConversationDetail> => {
   console.log(`API: GET /api/v1/conversations/${id}`);
-  const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/conversations/${id}`, { method: "GET" }, token);
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/conversations/${id}`,
+    { method: "GET" },
+    token,
+  );
   return handleResponse(response);
 };
 
@@ -92,7 +128,11 @@ export const postChat = async ({
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(errorData.message || "Failed to send message", errorData.detail || {}, errorData.error_code);
+    throw new ApiError(
+      errorData.message || "Failed to send message",
+      errorData.detail || {},
+      errorData.error_code,
+    );
   }
 
   return response;

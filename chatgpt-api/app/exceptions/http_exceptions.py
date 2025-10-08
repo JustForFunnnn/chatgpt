@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 
 
 class HttpErrorCode(str, Enum):
-    TOKEN_EXPIRED = "TOKEN_EXPIRED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     DUPLICATED_USER_NAME = "DUPLICATED_USER_NAME"
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
@@ -17,15 +16,6 @@ class HttpBaseException(HTTPException):
         self.message = message
         detail = {"error_code": error_code.value, "message": message}
         super().__init__(status_code=status_code, detail=detail)
-
-
-class TokenExpiredException(HttpBaseException):
-    def __init__(self, message: str = "Token has expired."):
-        super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            error_code=HttpErrorCode.TOKEN_EXPIRED,
-            message=message,
-        )
 
 
 class InvalidCredentialsException(HttpBaseException):
