@@ -10,13 +10,11 @@ from app.exceptions.http_exceptions import HttpBaseException
 logger = logging.getLogger("app")
 
 
-async def http_base_exception_handler(request: Request, exc: HttpBaseException):
-    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
-    logger.log(log_level, f"Custom HTTP error, error_code: {exc.error_code}, message: {exc.message}")
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
     return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.detail,
-        headers=exc.headers,
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"message": "An internal server error occurred. Please try again later."},
     )
 
 
@@ -25,7 +23,17 @@ async def generic_http_exception_handler(request: Request, exc: HTTPException):
     logger.log(log_level, f"Generic HTTP error, status_code: {exc.status_code}, detail: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error_code": "GENERIC_HTTP_ERROR", "message": exc.detail},
+        content={"message": "An HTTP server error occurred. Please try again later."},
+        headers=exc.headers,
+    )
+
+
+async def http_base_exception_handler(request: Request, exc: HttpBaseException):
+    log_level = logging.WARNING if 400 <= exc.status_code < 500 else logging.ERROR
+    logger.log(log_level, f"Custom HTTP error, error_code: {exc.error_code}, message: {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail,
         headers=exc.headers,
     )
 
@@ -43,14 +51,6 @@ async def app_exception_handler(request: Request, exc: AppBaseError):
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"error_code": exc.error_code.value, "message": exc.message},
-    )
-
-
-async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error(f"An unhandled exception occurred: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"message": "An internal server error occurred. Please try again later."},
     )
 
 

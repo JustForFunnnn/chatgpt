@@ -32,8 +32,11 @@ export default function LoginPage() {
       const response = await loginUser(username, password);
       login(response.access_token);
     } catch (err) {
-      const error = err as ApiError;
-      setError(error.message || "Login failed");
+      let errMsg = "Failed to login, please try again later."
+      if (err instanceof ApiError) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }

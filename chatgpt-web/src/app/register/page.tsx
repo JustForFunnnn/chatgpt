@@ -38,8 +38,11 @@ export default function RegisterPage() {
       await registerUser(username, password);
       setSuccess(true);
     } catch (err) {
-      const error = err as ApiError;
-      setError(error.message || "Register failed");
+      let errMsg = "Failed to register, please try again later."
+      if (err instanceof ApiError) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import * as api from "@/api/client";
-import { Conversation } from "@/api/types";
+import { Conversation, ApiError } from "@/api/types";
 
 export function useConversations(token: string | null) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -17,8 +17,11 @@ export function useConversations(token: string | null) {
       const convs = await api.getConversations(token);
       setConversations(convs);
     } catch (err) {
-      console.error("Failed to load conversations", err);
-      setError("Failed to load message history.");
+      let errMsg = "Failed to load message history, please try again later."
+      if (err instanceof ApiError) {
+        errMsg = err.message;
+      }
+      setError(errMsg);
     } finally {
       setIsLoading(false);
     }

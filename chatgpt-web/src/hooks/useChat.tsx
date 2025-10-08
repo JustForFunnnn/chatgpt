@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import * as api from "@/api/client";
-import { Message } from "@/api/types";
+import { Message, ApiError } from "@/api/types";
 import { streamResponse } from "@/libs/stream";
 
 export function useChat(conversationId: number | null, token: string | null) {
@@ -26,8 +26,11 @@ export function useChat(conversationId: number | null, token: string | null) {
         });
         setMessages(data.messages);
       } catch (err) {
-        setError("Failed to load message history.");
-        console.error(err);
+        let errMsg = "Failed to load message history, please try again later."
+        if (err instanceof ApiError) {
+          errMsg = err.message;
+        }
+        setError(errMsg);
       } finally {
         setIsLoading(false);
       }
@@ -92,8 +95,11 @@ export function useChat(conversationId: number | null, token: string | null) {
           handleNewConversation(newConversationId);
         }
       } catch (err) {
-        console.error("Streaming failed:", err);
-        setError("Sorry, the message failed to send.");
+        let errMsg = "Failed to send message, please try again later."
+        if (err instanceof ApiError) {
+          errMsg = err.message;
+        }
+        setError(errMsg);
       } finally {
         setIsStreaming(false);
       }

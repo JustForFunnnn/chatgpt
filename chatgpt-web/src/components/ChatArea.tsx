@@ -97,7 +97,7 @@ export const ChatArea = memo<ChatAreaProps>(
           onScroll={onScroll}
         >
           <div
-            className={`max-w-4xl mx-auto ${messages.length === 0 ? "h-full" : ""}`}
+            className={`max-w-4xl mx-auto ${messages.length === 0 || loadError ? "h-full" : ""}`}
             ref={messagesContainerRef}
           >
             {renderChatContent()}
