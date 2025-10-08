@@ -122,8 +122,8 @@ chatgpt-web/
 ├── register/
 │   └── page.tsx          # The registration page component
 ├── globals.css           # Global styles and TailwindCSS setup
-└── layout.tsx            # Root layout for the application
-├── .env.development          # Default environment variables for development
+├── layout.tsx            # Root layout for the application
+├── .env.development      # Default environment variables for development
 └── ...
 ```
 
@@ -162,7 +162,7 @@ Follow these steps to set up and run the project locally.
     cp .env.example .env
     ```
     Open `.env` and set the following values:
-    * `DATABASE_URL`: Your PostgreSQL connection string (e.g., `postgresql+asyncpg://user:password@localhost:5432/chatgpt_db`).
+    * `DATABASE_URL`: Your PostgreSQL connection string (e.g., `postgresql+asyncpg://postgres:password@localhost:5432/chatgpt_db`).
     * `JWT_SECRET_KEY`: **Important:** Change the default value to a long, random, secret string for security.
     * **LLM Provider:** Fill in the details for at least one provider (Gemini, OpenAI, or Azure).
 
@@ -173,7 +173,7 @@ Follow these steps to set up and run the project locally.
     ```
 
 5.  **Run Database Migrations:**
-    Ensure your PostgreSQL server is running and the database from your `DATABASE_URL` exists.
+    Ensure your PostgreSQL server is running, then **CREATE THE DATABASE**(such as `chatgpt_db`) metioned by your `DATABASE_URL`.
     ```bash
     alembic upgrade head
     ```
