@@ -148,7 +148,10 @@ Follow these steps to set up and run the project locally.
 
     First, ensure you have `uv` installed (`pip install uv`). Then, create and activate the virtual environment:
     ```bash
-    # This creates a .venv folder with Python 3.12
+    # (Optional) Install python 3.12 if you don't have
+    uv python install 3.12
+    
+    # Create venv base on python 3.12
     uv venv --python 3.12
     ```
 
