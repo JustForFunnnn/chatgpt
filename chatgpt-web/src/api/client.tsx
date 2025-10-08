@@ -39,7 +39,6 @@ export const registerUser = async (
   username: string,
   password: string,
 ): Promise<User> => {
-  console.log("API: POST /api/v1/register");
   const response = await fetch(`${API_BASE_URL}/api/v1/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -52,7 +51,6 @@ export const loginUser = async (
   username: string,
   password: string,
 ): Promise<Token> => {
-  console.log("API: GET /api/v1/login");
   const formData = new URLSearchParams();
   formData.append("username", username);
   formData.append("password", password);
@@ -66,7 +64,6 @@ export const loginUser = async (
 };
 
 export const logoutUser = async (token: string): Promise<void> => {
-  console.log("API: POST /api/v1/logout");
   const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/logout`,
     { method: "POST" },
@@ -78,7 +75,6 @@ export const logoutUser = async (token: string): Promise<void> => {
 export const getConversations = async (
   token: string,
 ): Promise<Conversation[]> => {
-  console.log("API: GET /api/v1/conversations");
   const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/conversations`,
     { method: "GET" },
@@ -94,7 +90,6 @@ export const getConversationDetail = async ({
   id: number;
   token: string;
 }): Promise<ConversationDetail> => {
-  console.log(`API: GET /api/v1/conversations/${id}`);
   const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/conversations/${id}`,
     { method: "GET" },
@@ -112,8 +107,6 @@ export const postChat = async ({
   message: string;
   token: string;
 }): Promise<Response> => {
-  console.log("API: POST /api/v1/chat", { conversationId, message });
-
   const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/chat`,
     {

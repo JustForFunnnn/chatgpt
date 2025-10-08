@@ -48,5 +48,5 @@ async def login(
 
 @router.post("/logout")
 async def logout(current_user: User = Depends(get_current_user)):
-    """Do nothing, the client should be delete the jwt token from storage after call this api"""
+    """Do nothing, the client should delete the jwt token from storage after call this api"""
     return {"message": f"User {current_user.id} has been logged out successfully."}

@@ -23,11 +23,6 @@ export interface User {
   username: string;
 }
 
-export interface TokenResponse {
-  access_token: string;
-  token_type: "bearer";
-}
-
 export interface Token {
   access_token: string;
   token_type: string;
