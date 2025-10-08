@@ -27,7 +27,7 @@ export function useChat(conversationId: number | null, token: string | null) {
         });
         setMessages(data.messages);
       } catch (err) {
-        let errMsg = "Failed to load message history, please try again later."
+        let errMsg = "Failed to load message history, please try again later.";
         if (err instanceof ApiError) {
           errMsg = err.message;
         }
@@ -96,7 +96,7 @@ export function useChat(conversationId: number | null, token: string | null) {
           handleNewConversation(newConversationId);
         }
       } catch (err) {
-        let errMsg = "Failed to send message, please try again later."
+        let errMsg = "Failed to send message, please try again later.";
         if (err instanceof ApiError) {
           errMsg = err.message;
         }

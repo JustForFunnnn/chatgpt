@@ -2,8 +2,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User
-from app.services.user import create_user, get_user_by_name
 from app.services.security import get_password_hash
+from app.services.user import create_user, get_user_by_name
 
 
 class TestUserService:

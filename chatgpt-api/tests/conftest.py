@@ -1,19 +1,20 @@
-import pytest
 import asyncio
+import logging
 from typing import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
 from pydantic_ai import Agent
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
-from app.main import app as fastapi_app
-from app.models import Base, User, Conversation, Message
+from app.core.enums import MessageRole
 from app.db import get_session
 from app.llm import get_agent
+from app.main import app as fastapi_app
+from app.models import Base, Conversation, Message, User
 from app.services.security import create_access_token, get_password_hash
-from app.core.enums import MessageRole
 
 
 @pytest.fixture(scope="session")
@@ -104,7 +105,11 @@ async def async_client(override_get_session) -> AsyncGenerator[AsyncClient, None
         yield client
 
 
-# Table Records Fixture
+def pytest_configure():
+    disable_loggers = ["app", "httpx"]
+    for logger_name in disable_loggers:
+        logger = logging.getLogger(logger_name)
+        logger.disabled = True
 
 
 @pytest.fixture(scope="function")

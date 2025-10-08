@@ -1,10 +1,10 @@
 import pytest
+from pydantic_ai import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
-from app.models import User, Conversation, Message
-from app.services.chat import create_conversation, create_message, get_user_conversation_with_messages, list_user_conversations, messages_to_model_messages, trim_message_history, SSEvent
 from app.core.enums import MessageRole, SSEventType
+from app.models import Conversation, Message, User
+from app.services.chat import SSEvent, create_conversation, create_message, get_user_conversation_with_messages, list_user_conversations, messages_to_model_messages, trim_message_history
 
 
 class TestChatService:

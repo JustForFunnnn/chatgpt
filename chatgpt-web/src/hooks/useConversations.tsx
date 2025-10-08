@@ -17,7 +17,7 @@ export function useConversations(token: string | null) {
       const convs = await api.getConversations(token);
       setConversations(convs);
     } catch (err) {
-      let errMsg = "Failed to load message history, please try again later."
+      let errMsg = "Failed to load message history, please try again later.";
       if (err instanceof ApiError) {
         errMsg = err.message;
       }

@@ -38,7 +38,7 @@ export default function RegisterPage() {
       await registerUser(username, password);
       setSuccess(true);
     } catch (err) {
-      let errMsg = "Failed to register, please try again later."
+      let errMsg = "Failed to register, please try again later.";
       if (err instanceof ApiError) {
         errMsg = err.message;
       }

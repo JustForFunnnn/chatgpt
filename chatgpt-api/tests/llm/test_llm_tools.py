@@ -1,8 +1,9 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 from pydantic_ai import Agent
 
-from app.llm.tools import duckduckgo_search, scrape_website, suggest_title, clean_markdown_content, DuckDuckGoResult
+from app.llm.tools import DuckDuckGoResult, clean_markdown_content, duckduckgo_search, scrape_website, suggest_title
 
 
 class TestLLMTools:

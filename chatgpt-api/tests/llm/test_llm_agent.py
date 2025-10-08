@@ -1,7 +1,8 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+from pydantic_ai.models.openai import OpenAIChatModel
 
 from app.llm.agent import gen_fallback_models
-from pydantic_ai.models.openai import OpenAIChatModel
 
 
 class TestLLMAgent:

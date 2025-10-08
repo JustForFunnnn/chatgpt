@@ -32,7 +32,7 @@ export default function LoginPage() {
       const response = await loginUser(username, password);
       login(response.access_token);
     } catch (err) {
-      let errMsg = "Failed to login, please try again later."
+      let errMsg = "Failed to login, please try again later.";
       if (err instanceof ApiError) {
         errMsg = err.message;
       }

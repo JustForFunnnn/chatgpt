@@ -1,8 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
-from app.models import Conversation, Message
 from app.exceptions.http_exceptions import HttpErrorCode
+from app.models import Conversation, Message
 
 
 class TestListConversations:

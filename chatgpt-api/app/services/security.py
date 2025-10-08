@@ -1,5 +1,5 @@
 import jwt
-from jwt import ExpiredSignatureError, PyJWTError
+from jwt import PyJWTError
 from passlib.context import CryptContext
 from pydantic import ValidationError
 
