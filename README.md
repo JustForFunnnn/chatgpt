@@ -40,11 +40,10 @@
 
 ## Demo
 
-```HTML
+Can check `chatgpt-demo.mp4` under `chatgpt/`
 <video width="320" height="240" controls>
     <source src="chatgpt-demo.mp4" type="video/mp4">
 </video>
-```
 
 ## 📁 Project Structure
 
