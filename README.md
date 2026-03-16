@@ -12,9 +12,7 @@ Powered by **Pydantic-AI**, the application supports multiple LLM providers incl
 This repository serves as a practical example of building a production-style AI chat system across both backend and frontend.
 
 ## Demo
-
-Check demo video `chatgpt-demo.mp4` under root path 
-[![watch it on youtube](https://img.youtube.com/vi/ufKfIoSXQS8/maxresdefault.jpg)](https://youtu.be/ufKfIoSXQS8)
+https://github.com/user-attachments/assets/0faa7a0d-6ce3-49d3-bf3a-c33ff0dbf4ce
 
 ## ✨ Features
 
