@@ -1,5 +1,16 @@
 # ChatGPT Clone
 
+A full-stack ChatGPT-style application built with **FastAPI**, **Next.js**, and **PostgreSQL**. It provides a modern AI chat experience with **real-time streaming responses**, **persistent conversation history**, **JWT authentication**, and **multi-provider LLM support**.
+
+The project consists of:
+
+- **`chatgpt-api`** — a FastAPI backend responsible for authentication, conversation storage, LLM orchestration, SSE streaming, and agent tool integration.
+- **`chatgpt-web`** — a Next.js frontend that delivers a responsive chat UI with Markdown rendering, syntax highlighting, dark mode, and smooth conversation switching.
+
+Powered by **Pydantic-AI**, the application supports multiple LLM providers including **Azure OpenAI**, **OpenAI**, and **Gemini**, with built-in fallback capability. It also includes agent tools such as **web search** and **website scraping** to extend the assistant with real-time external information.
+
+This repository serves as a practical example of building a production-style AI chat system across both backend and frontend.
+
 ## ✨ Features
 
 ### ⚙️ Backend API (`chatgpt-api`)
