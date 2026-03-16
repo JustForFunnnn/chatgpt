@@ -11,6 +11,11 @@ Powered by **Pydantic-AI**, the application supports multiple LLM providers incl
 
 This repository serves as a practical example of building a production-style AI chat system across both backend and frontend.
 
+## Demo
+
+Check demo video `chatgpt-demo.mp4` under root path 
+[![watch it on youtube](https://img.youtube.com/vi/ufKfIoSXQS8/maxresdefault.jpg)](https://youtu.be/ufKfIoSXQS8)
+
 ## ✨ Features
 
 ### ⚙️ Backend API (`chatgpt-api`)
@@ -48,13 +53,6 @@ This repository serves as a practical example of building a production-style AI 
     * **Dark Mode:** Support switch between light and dark themes.
     * **Timestamps:** Displays a formatted timestamp for each message.
     * **Automatic Conversation Switching:** Auto switches to the new conversation view after the first message is sent.
-
-## Demo
-
-Can check `chatgpt-demo.mp4` under `chatgpt/`
-<video width="320" height="240" controls>
-    <source src="chatgpt-demo.mp4" type="video/mp4">
-</video>
 
 ## 📁 Project Structure
 
