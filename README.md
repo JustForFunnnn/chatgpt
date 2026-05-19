@@ -1,6 +1,6 @@
 [简体中文](./README.zh-CN.md) | [English](./README.md)
 
-# ChatGPT Clone
+# Full-Stack AI Chat Application
 
 A full-stack ChatGPT-style application built with **FastAPI**, **Next.js**, and **PostgreSQL**. It provides a modern AI chat experience with **real-time streaming responses**, **persistent conversation history**, **JWT authentication**, and **multi-provider LLM support**.
 
