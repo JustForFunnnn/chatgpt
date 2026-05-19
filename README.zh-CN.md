@@ -1,6 +1,6 @@
 [简体中文](./README.zh-CN.md) | [English](./README.md)
 
-# ChatGPT Clone
+# 全栈 AI 聊天应用
 
 这是一个基于 **FastAPI**、**Next.js** 和 **PostgreSQL** 构建的全栈 ChatGPT 风格应用。它提供现代化的 AI 聊天体验，支持**实时流式响应**、**持久化历史会话**、**JWT 身份验证**以及**多 LLM 提供商支持**。
 
